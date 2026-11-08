@@ -19,7 +19,7 @@ interface MoodScores {
 }
 
 interface Game {
-  id: number;
+  steam_app_id: number;
   title: string;
   emoji: string;
   genres: string | string[];
@@ -27,7 +27,7 @@ interface Game {
   summary: string;
   mood: MoodScores;
   bg: string;
-  cover_url?: string | null;
+  header_url?: string | null;
 }
 
 const MOODS: { key: keyof MoodScores; label: string }[] = [
@@ -38,58 +38,7 @@ const MOODS: { key: keyof MoodScores; label: string }[] = [
   { key: "challenge", label: "Challenge" },
 ];
 
-const DEFAULT_GAMES: Game[] = [
-  {
-    id: 1,
-    title: "Hades",
-    emoji: "🔥",
-    genres: "Roguelike, Action",
-    year: 2020,
-    summary: "Escape the underworld, one run at a time.",
-    mood: { excitement: 5, chill: 1, puzzle: 1, story: 4, challenge: 4 },
-    bg: "#8b2e1f",
-  },
-  {
-    id: 2,
-    title: "Stardew Valley",
-    emoji: "🌱",
-    genres: "Farming, Simulation",
-    year: 2016,
-    summary: "Inherit a rundown farm and build a peaceful life.",
-    mood: { excitement: 2, chill: 5, puzzle: 2, story: 3, challenge: 1 },
-    bg: "#4f7a3a",
-  },
-  {
-    id: 3,
-    title: "Portal 2",
-    emoji: "🧪",
-    genres: "Puzzle, First-person",
-    year: 2011,
-    summary: "Solve physics-based test chambers with portal guns.",
-    mood: { excitement: 2, chill: 1, puzzle: 5, story: 4, challenge: 3 },
-    bg: "#2c5f8a",
-  },
-  {
-    id: 4,
-    title: "Hollow Knight",
-    emoji: "🗡️",
-    genres: "Metroidvania, Action",
-    year: 2017,
-    summary: "Explore a vast fallen kingdom of bugs and gods.",
-    mood: { excitement: 4, chill: 1, puzzle: 2, story: 3, challenge: 5 },
-    bg: "#2a2a3d",
-  },
-  {
-    id: 5,
-    title: "Outer Wilds",
-    emoji: "🪐",
-    genres: "Exploration, Mystery",
-    year: 2019,
-    summary: "A solar system trapped in a 22-minute time loop.",
-    mood: { excitement: 2, chill: 3, puzzle: 5, story: 5, challenge: 2 },
-    bg: "#5a3d7a",
-  },
-];
+const DEFAULT_GAMES: Game[] = [];
 
 export default function GameMatch() {
   const [games, setGames] = useState<Game[]>(DEFAULT_GAMES);
@@ -107,12 +56,12 @@ export default function GameMatch() {
   useEffect(() => {
     const loadGames = async () => {
       try {
-        const rawgGames = await fetchGamesFromSupabase();
-        console.log("Loaded games from Supabase:", rawgGames);
-        if (rawgGames.length > 0) {
-          const enrichedGames = rawgGames.map(enrichGameData);
+        const steamGames = await fetchGamesFromSupabase();
+        console.log("Loaded games from Supabase:", steamGames);
+        if (steamGames.length > 0) {
+          const enrichedGames = steamGames.map(enrichGameData);
           console.log("Enriched games:", enrichedGames);
-          console.log("First game cover_url:", enrichedGames[0]?.cover_url);
+          console.log("First game header_url:", enrichedGames[0]?.header_url);
           console.log("First game full:", JSON.stringify(enrichedGames[0], null, 2));
           setGames(enrichedGames);
         } else {
@@ -129,7 +78,7 @@ export default function GameMatch() {
   }, []);
 
   // Calculate deck sorted by user mood preferences
-  const currentDeck = games.filter((g) => !seenIds.has(g.id)).sort((a, b) => {
+  const currentDeck = games.filter((g) => !seenIds.has(g.steam_app_id)).sort((a, b) => {
     const scoreA = MOODS.reduce(
       (sum, m) => sum + sliders[m.key] * a.mood[m.key],
       0,
@@ -145,7 +94,7 @@ export default function GameMatch() {
 
   const handleSwipe = (liked: boolean) => {
     if (!currentGame) return;
-    setSeenIds((prev) => new Set(prev).add(currentGame.id));
+    setSeenIds((prev) => new Set(prev).add(currentGame.steam_app_id));
     if (liked) setSavedGames((prev) => [...prev, currentGame]);
   };
 
@@ -198,7 +147,7 @@ export default function GameMatch() {
         <AnimatePresence>
           {currentGame ? (
             <SwipeCard
-              key={currentGame.id}
+              key={currentGame.steam_app_id}
               game={currentGame}
               onSwipe={handleSwipe}
             />
@@ -248,7 +197,7 @@ export default function GameMatch() {
         ) : (
           <ul className="list-inside list-disc space-y-1 font-sans text-sm">
             {savedGames.map((g) => (
-              <li key={g.id}>
+              <li key={g.steam_app_id}>
                 {g.emoji} <strong>{g.title}</strong>
               </li>
             ))}
@@ -305,11 +254,15 @@ function SwipeCard({
 
       <div>
         <div className="relative h-36 w-full rounded border-2 border-amber-950 shadow-inner overflow-hidden flex items-center justify-center" style={{ backgroundColor: game.bg }}>
-          {game.cover_url && (
+          {game.header_url && (
             <img
-              src={game.cover_url}
+              src={game.header_url}
               alt={game.title}
               className="absolute inset-0 h-full w-full object-cover"
+              onError={(e) => {
+                console.error("Image failed to load:", game.header_url);
+                e.currentTarget.style.display = "none";
+              }}
             />
           )}
           <div className="absolute inset-0 bg-black/20" />

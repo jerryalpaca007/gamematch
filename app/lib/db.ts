@@ -9,19 +9,25 @@ if (!supabaseUrl || !supabaseKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-export interface RawgGame {
-  id: number;
-  slug: string;
+export interface SteamGame {
+  steam_app_id: number;
   title: string;
   released: string | null;
   metacritic: number | null;
-  rating: number;
-  cover_url: string | null;
+  short_description: string | null;
+  header_url: string | null;
   genres: string[];
+  categories: string[];
   tags: string[];
 }
 
-export interface GameWithMood extends RawgGame {
+export interface GameWithMood {
+  steam_app_id: number;
+  title: string;
+  header_url: string | null;
+  genres: string[];
+  categories: string[];
+  tags: string[];
   emoji: string;
   year: number;
   summary: string;
@@ -35,8 +41,8 @@ export interface GameWithMood extends RawgGame {
   bg: string;
 }
 
-export async function fetchGamesFromSupabase(): Promise<RawgGame[]> {
-  const { data, error } = await supabase.from("games").select("*").limit(100);
+export async function fetchGamesFromSupabase(): Promise<SteamGame[]> {
+  const { data, error } = await supabase.from("games").select("*");
 
   if (error) {
     console.error("Error fetching games:", error);
@@ -134,18 +140,26 @@ export function generateBgColor(rating: number): string {
   return colors[Math.floor(rating * colors.length) % colors.length];
 }
 
-export function enrichGameData(game: RawgGame): GameWithMood {
+export function enrichGameData(game: SteamGame): GameWithMood {
   const year = game.released
     ? parseInt(game.released.split("-")[0])
     : new Date().getFullYear();
-  const mood = generateMoodScores(game.genres, game.rating);
+
+  // Use metacritic or default rating for mood calculation
+  const ratingForMood = game.metacritic ? game.metacritic / 20 : 3;
+  const mood = generateMoodScores(game.genres, ratingForMood);
   const emoji = generateEmojiForGame(game.title, game.genres);
-  const bg = generateBgColor(game.rating);
+  const bg = generateBgColor(ratingForMood);
 
   return {
-    ...game,
+    steam_app_id: game.steam_app_id,
+    title: game.title,
+    header_url: game.header_url,
+    genres: game.genres,
+    categories: game.categories,
+    tags: game.tags,
     year,
-    summary: `A ${game.genres.join(", ")} game with ${game.rating}/5 rating.`,
+    summary: game.short_description || `A ${game.genres.join(", ")} game`,
     mood,
     emoji,
     bg,
