@@ -62,7 +62,10 @@ export default function GameMatch() {
           const enrichedGames = steamGames.map(enrichGameData);
           console.log("Enriched games:", enrichedGames);
           console.log("First game header_url:", enrichedGames[0]?.header_url);
-          console.log("First game full:", JSON.stringify(enrichedGames[0], null, 2));
+          console.log(
+            "First game full:",
+            JSON.stringify(enrichedGames[0], null, 2),
+          );
           setGames(enrichedGames);
         } else {
           console.log("No games from Supabase, using defaults");
@@ -78,17 +81,19 @@ export default function GameMatch() {
   }, []);
 
   // Calculate deck sorted by user mood preferences
-  const currentDeck = games.filter((g) => !seenIds.has(g.steam_app_id)).sort((a, b) => {
-    const scoreA = MOODS.reduce(
-      (sum, m) => sum + sliders[m.key] * a.mood[m.key],
-      0,
-    );
-    const scoreB = MOODS.reduce(
-      (sum, m) => sum + sliders[m.key] * b.mood[m.key],
-      0,
-    );
-    return scoreB - scoreA;
-  });
+  const currentDeck = games
+    .filter((g) => !seenIds.has(g.steam_app_id))
+    .sort((a, b) => {
+      const scoreA = MOODS.reduce(
+        (sum, m) => sum + sliders[m.key] * a.mood[m.key],
+        0,
+      );
+      const scoreB = MOODS.reduce(
+        (sum, m) => sum + sliders[m.key] * b.mood[m.key],
+        0,
+      );
+      return scoreB - scoreA;
+    });
 
   const currentGame = currentDeck[0] || null;
 
@@ -105,9 +110,6 @@ export default function GameMatch() {
   return (
     <div className="mx-auto max-w-md px-4 py-8 font-serif text-amber-950 dark:text-amber-50">
       <header className="mb-6 text-center">
-        <h1 className="text-3xl font-bold tracking-wider uppercase">
-          GameMatch
-        </h1>
         <p className="text-sm italic opacity-75">Swipe for your next PC game</p>
       </header>
 
@@ -253,7 +255,10 @@ function SwipeCard({
       </motion.div>
 
       <div>
-        <div className="relative h-36 w-full rounded border-2 border-amber-950 shadow-inner overflow-hidden flex items-center justify-center" style={{ backgroundColor: game.bg }}>
+        <div
+          className="relative h-36 w-full rounded border-2 border-amber-950 shadow-inner overflow-hidden flex items-center justify-center"
+          style={{ backgroundColor: game.bg }}
+        >
           {game.header_url && (
             <img
               src={game.header_url}
@@ -270,7 +275,8 @@ function SwipeCard({
         </div>
         <h3 className="mt-3 text-xl font-bold">{game.title}</h3>
         <p className="font-sans text-xs opacity-60">
-          {Array.isArray(game.genres) ? game.genres.join(", ") : game.genres} • {game.year}
+          {Array.isArray(game.genres) ? game.genres.join(", ") : game.genres} •{" "}
+          {game.year}
         </p>
         <p className="mt-2 text-sm leading-relaxed">{game.summary}</p>
       </div>
