@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  gamematch:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: https://lndedejvjvxfiavkjbwn.supabase.co
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZGVkZWp2anZ4ZmlhdmtqYnduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2MDY5MDEsImV4cCI6MjEwOTE4MjkwMX0.1kud6amezw3hfo-0tkBSH_zcnWavm2iFIdkeN8nILrk
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_SUPABASE_URL=https://lndedejvjvxfiavkjbwn.supabase.co
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZGVkZWp2anZ4ZmlhdmtqYnduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2MDY5MDEsImV4cCI6MjEwOTE4MjkwMX0.1kud6amezw3hfo-0tkBSH_zcnWavm2iFIdkeN8nILrk
+    restart: unless-stopped
+    # Uncomment for development with hot reload:
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev

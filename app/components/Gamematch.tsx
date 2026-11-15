@@ -1,5 +1,5 @@
 "use client";
-
+import Image from "next/image";
 import React, { useState, useEffect } from "react";
 import {
   motion,
@@ -9,7 +9,11 @@ import {
 } from "framer-motion";
 import { Heart, X, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
+import { Jersey_25, Press_Start_2P } from "next/font/google";
+import styles from "./Gamematch.module.css";
 
+const jersey = Jersey_25({ subsets: ["latin"], weight: "400" });
+const pressStart = Press_Start_2P({ subsets: ["latin"], weight: "400" });
 interface MoodScores {
   excitement: number;
   chill: number;
@@ -80,7 +84,7 @@ export default function GameMatch() {
     loadGames();
   }, []);
 
-  // Calculate deck sorted by user mood preferences
+  // Calculate deck sorted by user mood preferences (get top 3 for stack)
   const currentDeck = games
     .filter((g) => !seenIds.has(g.steam_app_id))
     .sort((a, b) => {
@@ -93,7 +97,8 @@ export default function GameMatch() {
         0,
       );
       return scoreB - scoreA;
-    });
+    })
+    .slice(0, 3);
 
   const currentGame = currentDeck[0] || null;
 
@@ -148,11 +153,18 @@ export default function GameMatch() {
       <div className="relative h-[440px] w-full">
         <AnimatePresence>
           {currentGame ? (
-            <SwipeCard
-              key={currentGame.steam_app_id}
-              game={currentGame}
-              onSwipe={handleSwipe}
-            />
+            <div className="relative h-full w-full">
+              {/* Render cards in reverse order so top card is on top */}
+              {currentDeck.map((game, index) => (
+                <SwipeCard
+                  key={game.steam_app_id}
+                  game={game}
+                  onSwipe={handleSwipe}
+                  index={index}
+                  totalCards={currentDeck.length}
+                />
+              ))}
+            </div>
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center rounded-lg border-2 border-amber-950 bg-amber-50 p-6 text-center shadow-[6px_6px_0_#2b2118] dark:border-amber-100 dark:bg-stone-900 dark:shadow-[6px_6px_0_#f1e8d4]">
               <p className="text-lg font-medium">
@@ -214,14 +226,23 @@ export default function GameMatch() {
 function SwipeCard({
   game,
   onSwipe,
+  index = 0,
+  totalCards = 1,
 }: {
   game: Game;
   onSwipe: (liked: boolean) => void;
+  index?: number;
+  totalCards?: number;
 }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-20, 20]);
   const opacityLike = useTransform(x, [10, 100], [0, 1]);
   const opacityNope = useTransform(x, [-10, -100], [0, 1]);
+
+  // Stack offset for cards below
+  const scale = 1 - index * 0.05;
+  const yOffset = index * 12;
+  const zIndex = totalCards - index;
 
   const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
     if (info.offset.x > 100) {
@@ -233,26 +254,36 @@ function SwipeCard({
 
   return (
     <motion.div
-      style={{ x, rotate }}
-      drag="x"
+      initial={{ scale, y: yOffset }}
+      animate={{ scale, y: yOffset }}
+      exit={{ x: 500, opacity: 0, rotate: 20 }}
+      style={{
+        x: index === 0 ? x : 0,
+        rotate: index === 0 ? rotate : 0,
+        zIndex,
+      }}
+      drag={index === 0 ? "x" : false}
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
-      exit={{ opacity: 0 }}
       className="absolute inset-0 flex cursor-grab flex-col justify-between rounded-lg border-2 border-amber-950 bg-amber-50 p-4 shadow-[6px_6px_0_#2b2118] active:cursor-grabbing dark:border-amber-100 dark:bg-stone-900 dark:shadow-[6px_6px_0_#f1e8d4]"
     >
-      {/* Dynamic Overlays */}
-      <motion.div
-        style={{ opacity: opacityLike }}
-        className="absolute right-4 top-4 rotate-12 rounded border-4 border-emerald-600 px-3 py-1 font-sans font-bold text-emerald-600 pointer-events-none"
-      >
-        SAVE
-      </motion.div>
-      <motion.div
-        style={{ opacity: opacityNope }}
-        className="absolute left-4 top-4 -rotate-12 rounded border-4 border-rose-600 px-3 py-1 font-sans font-bold text-rose-600 pointer-events-none"
-      >
-        PASS
-      </motion.div>
+      {/* Dynamic Overlays (only show on top card) */}
+      {index === 0 && (
+        <>
+          <motion.div
+            style={{ opacity: opacityLike }}
+            className="absolute right-4 top-4 rotate-12 rounded border-4 border-emerald-600 px-3 py-1 font-sans font-bold text-emerald-600 pointer-events-none"
+          >
+            SAVE
+          </motion.div>
+          <motion.div
+            style={{ opacity: opacityNope }}
+            className="absolute left-4 top-4 -rotate-12 rounded border-4 border-rose-600 px-3 py-1 font-sans font-bold text-rose-600 pointer-events-none"
+          >
+            PASS
+          </motion.div>
+        </>
+      )}
 
       <div>
         <div
@@ -271,7 +302,6 @@ function SwipeCard({
             />
           )}
           <div className="absolute inset-0 bg-black/20" />
-          <span className="relative text-6xl z-10">{game.emoji}</span>
         </div>
         <h3 className="mt-3 text-xl font-bold">{game.title}</h3>
         <p className="font-sans text-xs opacity-60">
@@ -281,15 +311,18 @@ function SwipeCard({
         <p className="mt-2 text-sm leading-relaxed">{game.summary}</p>
       </div>
 
-      <div className="flex flex-wrap gap-1 font-sans">
-        {MOODS.filter((m) => game.mood[m.key] >= 4).map((m) => (
-          <span
-            key={m.key}
-            className="rounded border border-emerald-700 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-          >
-            {m.label}
-          </span>
-        ))}
+      <div className="flex flex-wrap gap-1 font-sans items-center justify-between">
+        <div className="flex flex-wrap gap-1">
+          {MOODS.filter((m) => game.mood[m.key] >= 4).map((m) => (
+            <span
+              key={m.key}
+              className="rounded border border-emerald-700 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+            >
+              {m.label}
+            </span>
+          ))}
+        </div>
+        <span className="text-3xl">{game.emoji}</span>
       </div>
     </motion.div>
   );
