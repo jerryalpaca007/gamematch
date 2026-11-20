@@ -24,6 +24,7 @@ export interface SteamGame {
 export interface GameWithMood {
   steam_app_id: number;
   title: string;
+  metacritic: number | null;
   header_url: string | null;
   genres: string[];
   categories: string[];
@@ -41,6 +42,10 @@ export interface GameWithMood {
   bg: string;
 }
 
+// Same list as sync-steam.ts. Hides NSFW games that were stored before the
+// sync script started filtering them.
+const NSFW_TAGS = ["nsfw", "hentai", "eroge"];
+
 export async function fetchGamesFromSupabase(): Promise<SteamGame[]> {
   const { data, error } = await supabase.from("games").select("*");
 
@@ -49,7 +54,10 @@ export async function fetchGamesFromSupabase(): Promise<SteamGame[]> {
     return [];
   }
 
-  return data || [];
+  return (data || []).filter(
+    (g: SteamGame) =>
+      !(g.tags ?? []).some((t) => NSFW_TAGS.includes(t.toLowerCase())),
+  );
 }
 
 export function generateMoodScores(genres: string[], rating: number) {
@@ -141,9 +149,9 @@ export function generateBgColor(rating: number): string {
 }
 
 export function enrichGameData(game: SteamGame): GameWithMood {
-  const year = game.released
-    ? parseInt(game.released.split("-")[0])
-    : new Date().getFullYear();
+  // Steam dates look like "14 Aug, 2025", so find the 4-digit year anywhere in it
+  const yearMatch = game.released?.match(/\b(19|20)\d{2}\b/);
+  const year = yearMatch ? parseInt(yearMatch[0]) : new Date().getFullYear();
 
   // Use metacritic or default rating for mood calculation
   const ratingForMood = game.metacritic ? game.metacritic / 20 : 3;
@@ -154,6 +162,7 @@ export function enrichGameData(game: SteamGame): GameWithMood {
   return {
     steam_app_id: game.steam_app_id,
     title: game.title,
+    metacritic: game.metacritic,
     header_url: game.header_url,
     genres: game.genres,
     categories: game.categories,
