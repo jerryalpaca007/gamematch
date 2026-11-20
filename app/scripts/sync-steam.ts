@@ -10,14 +10,19 @@ const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 // How many NEW games to save in this run
 const LIMIT = Number(process.env.SYNC_LIMIT ?? 200);
-// Skip obscure games: fewer total reviews than this on Steam
-const MIN_REVIEWS = Number(process.env.SYNC_MIN_REVIEWS ?? 50);
+// Skip obscure games: fewer total reviews than this on Steam. A Metacritic
+// score is NOT required; popularity is what decides.
+const MIN_REVIEWS = Number(process.env.SYNC_MIN_REVIEWS ?? 500);
+// A "Game: Subtitle" entry is treated as a lesser-known variation (expansion,
+// spin-off, side story) when it has fewer than this share of the reviews of the
+// base game. Popular sequels like "Hollow Knight: Silksong" pass easily.
+const VARIANT_RATIO = Number(process.env.SYNC_VARIANT_RATIO ?? 0.25);
 // SteamSpy's list is 1000 games per page and can only be read about once a
 // minute, so stop after this many pages even if the target isn't reached
 const MAX_PAGES = Number(process.env.SYNC_MAX_PAGES ?? 10);
 
-// Games that can never be saved (no Metacritic score, NSFW) are remembered here
-// so later runs skip them without spending Steam requests
+// NSFW games are remembered here so later runs skip them without spending
+// Steam requests
 const REJECTED_FILE = path.join(process.cwd(), "app/scripts/sync-rejected.json");
 const rejected = new Set<number>(
   fs.existsSync(REJECTED_FILE)
@@ -60,7 +65,25 @@ type spyGame = {
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const normalize = (title: string) => title.toLowerCase().trim();
+// Lowercase and drop symbols and edition words, so "DOOM (Game of the Year
+// Edition)" and "Doom" count as the same game
+const normalize = (title: string) =>
+  title
+    .toLowerCase()
+    .replace(/[™®©]/g, "")
+    .replace(
+      /[\s:(\-–]*(?:the\s+)?(game of the year|goty|complete|definitive|enhanced|legacy|anniversary|ultimate|gold|deluxe|special|remastered|director'?s cut)( edition| collection)?\)?\s*$/i,
+      "",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+
+// For "Half-Life: Blue Shift" or "Half-Life - Opposing Force" this returns
+// "half-life". Titles without a subtitle return null.
+function baseTitle(title: string): string | null {
+  const m = title.match(/^(.+?)\s*(?::|\s[-–]\s)\s*.+$/);
+  return m ? normalize(m[1]) : null;
+}
 
 // Only pure-NSFW games are dropped. Mainstream mature games (GTA-style) stay.
 // Steam content descriptors: 3 = adult only sexual content,
@@ -79,6 +102,23 @@ const hasNsfwDescriptor = (d: steamDetails) =>
 const hasNsfwTag = (tags: string[]) =>
   tags.some((t) => NSFW_TAGS.includes(t.toLowerCase()));
 
+// Total Steam reviews by title, filled from every SteamSpy page we read.
+// Used to tell whether a "Game: Subtitle" entry is much less known than its base.
+const reviewsByTitle = new Map<string, number>();
+function rememberReviews(games: spyGame[]) {
+  for (const g of games) {
+    const key = normalize(g.name);
+    const reviews = g.positive + g.negative;
+    if (reviews > (reviewsByTitle.get(key) ?? 0)) reviewsByTitle.set(key, reviews);
+  }
+}
+function isLesserKnownVariant(title: string, reviews: number): boolean {
+  const base = baseTitle(title);
+  if (!base) return false;
+  const baseReviews = reviewsByTitle.get(base);
+  return baseReviews !== undefined && reviews < baseReviews * VARIANT_RATIO;
+}
+
 // One page of SteamSpy's game list (1000 games), most-reviewed first.
 // SteamSpy allows this request only about once a minute, so callers wait.
 // Returns how many games the page had in total, and the ones worth checking.
@@ -90,6 +130,7 @@ async function fetchSpyPage(
   );
   if (!res.ok) return { total: 0, candidates: [] };
   const all = Object.values((await res.json()) as Record<string, spyGame>);
+  rememberReviews(all);
   const candidates = all
     .filter((g) => g.positive + g.negative >= MIN_REVIEWS)
     .sort((a, b) => b.positive + b.negative - (a.positive + a.negative));
@@ -146,8 +187,8 @@ async function main() {
   console.log(`Database already has ${knownIds.size} games. Target: ${LIMIT} new.`);
 
   let saved = 0;
-  const skipped = { known: 0, rejected: 0, noScore: 0, duplicate: 0, nsfw: 0, other: 0 };
-  console.log(`Remembered rejects from earlier runs: ${rejected.size}`);
+  const skipped = { known: 0, rejected: 0, variant: 0, duplicate: 0, nsfw: 0, other: 0 };
+  console.log(`Remembered NSFW rejects from earlier runs: ${rejected.size}`);
 
   for (let page = 0; saved < LIMIT && page < MAX_PAGES; page++) {
     if (page > 0) await sleep(61_000); // SteamSpy "all" is limited to ~1/minute
@@ -176,17 +217,16 @@ async function main() {
         skipped.duplicate++;
         continue;
       }
+      if (isLesserKnownVariant(spy.name, spy.positive + spy.negative)) {
+        skipped.variant++;
+        continue;
+      }
 
       try {
         const details = await gsteamDetails(spy.appid);
         await sleep(1500);
         if (!details) {
           skipped.other++;
-          continue;
-        }
-        if (!details.metacritic?.score) {
-          skipped.noScore++;
-          reject(spy.appid);
           continue;
         }
         if (knownTitles.has(normalize(details.name))) {
@@ -212,7 +252,7 @@ async function main() {
             steam_app_id: spy.appid,
             title: details.name,
             released: details.release_date?.date,
-            metacritic: details.metacritic.score,
+            metacritic: details.metacritic?.score ?? null,
             short_description: details.short_description,
             header_url: details.header_image,
             genres: details.genres?.map((g) => g.description) ?? [],
@@ -237,10 +277,22 @@ async function main() {
   saveRejected();
   console.log(
     `Done. Saved ${saved} new games. Skipped: ${skipped.known} already stored, ` +
-      `${skipped.rejected} remembered rejects, ${skipped.duplicate} same name, ` +
-      `${skipped.noScore} no Metacritic score, ` +
+      `${skipped.rejected} remembered NSFW, ${skipped.duplicate} same name, ` +
+      `${skipped.variant} lesser-known variants, ` +
       `${skipped.nsfw} NSFW, ${skipped.other} other.`,
   );
+
+  // Report only: stored games that look like lesser-known variants of a base game
+  const flagged = (existing ?? []).filter((g) => {
+    const reviews = reviewsByTitle.get(normalize(g.title));
+    return reviews !== undefined && isLesserKnownVariant(g.title, reviews);
+  });
+  if (flagged.length) {
+    console.log(
+      `Stored games that look like lesser-known variants (not removed):\n` +
+        flagged.map((g) => `  ${g.steam_app_id}  ${g.title}`).join("\n"),
+    );
+  }
 }
 
 main().catch((err) => {

@@ -49,7 +49,7 @@ function PixelPill({
           className={`${pressStart.className} block text-xs text-black`}
           style={{
             backgroundColor: color,
-            padding: `${px(8)}px ${px(12)}px`,
+            padding: `${px(8)} ${px(12)}`,
             clipPath: NOTCH,
           }}
         >

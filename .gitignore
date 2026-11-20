@@ -39,3 +39,5 @@ mood_engine.py
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/scripts
