@@ -13,6 +13,7 @@ import {
   motion,
   useMotionValue,
   useTransform,
+  animate,
   AnimatePresence,
 } from "framer-motion";
 import { RotateCcw } from "lucide-react";
@@ -87,8 +88,11 @@ export default function GameMatch() {
   const [viewing, setViewing] = useState<Game | null>(null);
   const [seenIds, setSeenIds] = useState<Set<number>>(new Set());
   const [savedGames, setSavedGames] = useState<Game[]>([]);
-  // 1 = the last card was saved (flies right), -1 = passed (flies left)
-  const [direction, setDirection] = useState(1);
+  // The swipe in progress: which game is flying off and which way (1 = right,
+  // -1 = left). The game only counts as seen once it has finished leaving.
+  const [leaving, setLeaving] = useState<{ id: number; dir: 1 | -1 } | null>(
+    null,
+  );
   // Size of the console: full size on desktop, shrunk to fit the card on phones
   const [layout, setLayout] = useState({ scale: S, narrow: false });
   useEffect(() => {
@@ -176,13 +180,22 @@ export default function GameMatch() {
 
   const currentGame = currentDeck[0] || null;
 
-  // Handler: marks the top card as seen, and saves it if the user liked it
-  const handleSwipe = (liked: boolean) => {
-    if (!currentGame) return;
-    setDirection(liked ? 1 : -1);
+  // Step 1: a drag, flick or button press asks the top card to fly away.
+  // Nothing changes in the deck yet, so the next game stays visible behind it.
+  const requestSwipe = (liked: boolean) => {
+    if (!currentGame || leaving) return;
+    setLeaving({ id: currentGame.steam_app_id, dir: liked ? 1 : -1 });
+  };
+
+  // Step 2: the card has fully left the screen. Now it counts as seen (and is
+  // saved if liked), and the next card moves up.
+  const commitSwipe = () => {
+    if (!leaving) return;
+    const game = games.find((g) => g.steam_app_id === leaving.id);
     // Create a new Set instead of changing the old one, so React sees the update
-    setSeenIds((prev) => new Set(prev).add(currentGame.steam_app_id));
-    if (liked) setSavedGames((prev) => [...prev, currentGame]);
+    setSeenIds((prev) => new Set(prev).add(leaving.id));
+    if (game && leaving.dir === 1) setSavedGames((prev) => [...prev, game]);
+    setLeaving(null);
   };
 
   const handleReset = () => {
@@ -211,19 +224,19 @@ export default function GameMatch() {
             className="absolute left-0 top-0"
             style={{ width: CARD_W, height: CARD_H }}
           >
-            {/* Each card is a direct child of AnimatePresence, so the card that
-              leaves plays its exit animation. custom tells it which way to fly. */}
-            <AnimatePresence custom={direction}>
-              {currentDeck.map((game, index) => (
-                <SwipeCard
-                  key={game.steam_app_id}
-                  game={game}
-                  onSwipe={handleSwipe}
-                  index={index}
-                  totalCards={currentDeck.length}
-                />
-              ))}
-            </AnimatePresence>
+            {/* The deck, drawn back to front. Every card shows its contents, so
+                the next game is visible behind the one being swiped. */}
+            {currentDeck.map((game, index) => (
+              <SwipeCard
+                key={game.steam_app_id}
+                game={game}
+                index={index}
+                totalCards={currentDeck.length}
+                leaving={leaving?.id === game.steam_app_id ? leaving.dir : null}
+                onRequestSwipe={requestSwipe}
+                onCommit={commitSwipe}
+              />
+            ))}
 
             {/* Empty state: the same panel, with the message inside */}
             {!currentGame && (
@@ -232,7 +245,7 @@ export default function GameMatch() {
                 style={{ padding: px(3), clipPath: NOTCH }}
               >
                 <div
-                  className="flex h-full flex-col items-center justify-center gap-6 bg-[#8ebdff] p-5 text-center"
+                  className="flex h-full flex-col items-center justify-center gap-6 bg-[#ffc400] p-5 text-center"
                   style={{ clipPath: NOTCH }}
                 >
                   <p
@@ -243,7 +256,7 @@ export default function GameMatch() {
                   </p>
                   <button
                     onClick={handleReset}
-                    className={`${pressStart.className} flex items-center gap-2 border-4 border-black bg-[#ff4b6b] px-3 py-2 text-[10px] text-black active:translate-x-0.5 active:translate-y-0.5`}
+                    className={`${pressStart.className} flex items-center gap-2 border-4 border-black bg-[#e0201b] px-3 py-2 text-[10px] text-white active:translate-x-0.5 active:translate-y-0.5`}
                   >
                     <RotateCcw className="h-3 w-3" /> Reset
                   </button>
@@ -256,8 +269,8 @@ export default function GameMatch() {
           {currentGame && (
             <PixelButtons
               narrow={layout.narrow}
-              onPass={() => handleSwipe(false)}
-              onLike={() => handleSwipe(true)}
+              onPass={() => requestSwipe(false)}
+              onLike={() => requestSwipe(true)}
               onExtra={(id) => {
                 if (id === "grey" && currentGame) setViewing(currentGame);
               }}
@@ -277,24 +290,30 @@ export default function GameMatch() {
 
 // ---------- Swipe card ----------
 // One card: the same panel style as the expanded view (black notched outline,
-// light-blue body). Only the top card is draggable; the two behind it show
-// just the panel, with their contents hidden until they move up.
+// light-blue body). Only the top card is draggable. The cards behind it show
+// their contents too, so the next game is visible as the top card moves away.
 function SwipeCard({
   game,
-  onSwipe,
   index = 0,
   totalCards = 1,
+  leaving,
+  onRequestSwipe,
+  onCommit,
 }: {
   game: Game;
-  onSwipe: (liked: boolean) => void;
   index?: number;
   totalCards?: number;
+  // 1 or -1 while this card is flying off the screen, otherwise null
+  leaving: 1 | -1 | null;
+  onRequestSwipe: (liked: boolean) => void;
+  onCommit: () => void;
 }) {
   const isTop = index === 0;
 
-  // x follows the finger; tilt and the SAVE / PASS stamps are derived from it
+  // x follows the finger; tilt, fade and the SAVE / PASS stamps are derived from it
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-12, 12]);
+  const fade = useTransform(x, [-600, -250, 0, 250, 600], [0, 1, 1, 1, 0]);
   const opacityLike = useTransform(x, [10, 100], [0, 1]);
   const opacityNope = useTransform(x, [-10, -100], [0, 1]);
 
@@ -304,43 +323,52 @@ function SwipeCard({
   const yOffset = index * 12;
   const zIndex = 30 + totalCards - index;
 
-  // A long drag or a quick flick counts as a swipe; otherwise the card
-  // springs back (dragSnapToOrigin)
+  // When asked to leave, slide off the screen from wherever the card is now,
+  // and only then tell the deck (onCommit). A ref keeps the latest onCommit.
+  const commitRef = useRef(onCommit);
+  useEffect(() => {
+    commitRef.current = onCommit;
+  });
+  useEffect(() => {
+    if (leaving === null) return;
+    const controls = animate(x, leaving * 700, {
+      duration: 0.26,
+      ease: "easeIn",
+      onComplete: () => commitRef.current(),
+    });
+    return () => controls.stop();
+  }, [leaving, x]);
+
+  // A long drag or a quick flick asks for a swipe; otherwise the card springs back
   const handleDragEnd = (
     _: unknown,
     info: { offset: { x: number }; velocity: { x: number } },
   ) => {
-    if (info.offset.x > 100 || info.velocity.x > 600) onSwipe(true);
-    else if (info.offset.x < -100 || info.velocity.x < -600) onSwipe(false);
+    if (info.offset.x > 100 || info.velocity.x > 600) onRequestSwipe(true);
+    else if (info.offset.x < -100 || info.velocity.x < -600)
+      onRequestSwipe(false);
+    else animate(x, 0, { type: "spring", stiffness: 500, damping: 40 });
   };
 
   return (
     <motion.div
       initial={{ scale, y: yOffset }}
       animate={{ scale, y: yOffset }}
-      variants={{
-        // dir comes from AnimatePresence's custom prop: 1 = right, -1 = left
-        exit: (dir: number) => ({
-          x: dir * 700,
-          opacity: 0,
-          zIndex: 60,
-          transition: { duration: 0.26, ease: "easeIn" },
-        }),
-      }}
-      exit="exit"
+      // when a card moves up the stack it springs into place
+      transition={{ type: "spring", stiffness: 320, damping: 30 }}
       style={{
         x: isTop ? x : 0,
         rotate: isTop ? rotate : 0,
+        opacity: isTop ? fade : 1,
         zIndex,
         // pan-y: the browser keeps vertical scrolling, we get horizontal drags
         touchAction: "pan-y",
         // Draw the card on its own layer so moving it doesn't repaint it
         willChange: "transform",
       }}
-      drag={isTop ? "x" : false}
+      drag={isTop && leaving === null ? "x" : false}
       dragElastic={1}
       dragMomentum={false}
-      dragSnapToOrigin
       onDragEnd={handleDragEnd}
       className="absolute inset-0 cursor-grab active:cursor-grabbing"
     >
@@ -350,13 +378,10 @@ function SwipeCard({
         style={{ padding: px(3), clipPath: NOTCH }}
       >
         <div
-          className="relative flex h-full flex-col bg-[#8ebdff] p-5"
+          className="relative flex h-full flex-col bg-[#ffc400] p-5"
           style={{ clipPath: NOTCH }}
         >
-          <div
-            className="flex h-full flex-col"
-            style={{ visibility: isTop ? "visible" : "hidden" }}
-          >
+          <div className="flex h-full flex-col">
             {/* Cover image. The box has Steam's header aspect ratio, so the whole
                 image shows with no cropping and the space is reserved while it loads */}
             <div
@@ -387,7 +412,7 @@ function SwipeCard({
                 </motion.div>
                 <motion.div
                   style={{ opacity: opacityNope }}
-                  className={`${pressStart.className} pointer-events-none absolute left-8 top-10 z-10 -rotate-12 border-4 border-black bg-[#ff4b6b] px-2 py-1 text-xs text-black`}
+                  className={`${pressStart.className} pointer-events-none absolute left-8 top-10 z-10 -rotate-12 border-4 border-black bg-[#e0201b] px-2 py-1 text-xs text-white`}
                 >
                   PASS
                 </motion.div>
@@ -426,7 +451,7 @@ function SwipeCard({
                     style={{ padding: px(3), clipPath: NOTCH }}
                   >
                     <span
-                      className={`${jersey.className} block bg-[#cfe3ff] text-black`}
+                      className={`${jersey.className} block bg-[#e0201b] text-white`}
                       style={{
                         fontSize: px(13),
                         lineHeight: px(17),
@@ -456,7 +481,7 @@ function SwipeCard({
                     backgroundColor:
                       game.metacritic != null
                         ? scoreColor(game.metacritic)
-                        : "#cfe3ff",
+                        : "#fff3c4",
                     clipPath: NOTCH,
                   }}
                 >

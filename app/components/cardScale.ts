@@ -17,6 +17,18 @@ export const NOTCH = (() => {
   );
 })();
 
+// Pixel-round shape for the round buttons: each corner loses two pixel-steps
+export const ROUND = (() => {
+  const a = px(4);
+  const b = px(10);
+  return (
+    `polygon(${b} 0,calc(100% - ${b}) 0,calc(100% - ${b}) ${a},calc(100% - ${a}) ${a},calc(100% - ${a}) ${b},100% ${b},` +
+    `100% calc(100% - ${b}),calc(100% - ${a}) calc(100% - ${b}),calc(100% - ${a}) calc(100% - ${a}),calc(100% - ${b}) calc(100% - ${a}),calc(100% - ${b}) 100%,` +
+    `${b} 100%,${b} calc(100% - ${a}),${a} calc(100% - ${a}),${a} calc(100% - ${b}),0 calc(100% - ${b}),` +
+    `0 ${b},${a} ${b},${a} ${a},${b} ${a})`
+  );
+})();
+
 // Metacritic score color: red under 30, orange under 50, yellow under 70,
 // light green under 85, green from 85 up
 export function scoreColor(score: number): string {

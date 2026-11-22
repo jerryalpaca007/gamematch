@@ -23,7 +23,10 @@ const MAX_PAGES = Number(process.env.SYNC_MAX_PAGES ?? 10);
 
 // NSFW games are remembered here so later runs skip them without spending
 // Steam requests
-const REJECTED_FILE = path.join(process.cwd(), "app/scripts/sync-rejected.json");
+const REJECTED_FILE = path.join(
+  process.cwd(),
+  "app/scripts/sync-rejected.json",
+);
 const rejected = new Set<number>(
   fs.existsSync(REJECTED_FILE)
     ? (JSON.parse(fs.readFileSync(REJECTED_FILE, "utf8")) as number[])
@@ -109,7 +112,8 @@ function rememberReviews(games: spyGame[]) {
   for (const g of games) {
     const key = normalize(g.name);
     const reviews = g.positive + g.negative;
-    if (reviews > (reviewsByTitle.get(key) ?? 0)) reviewsByTitle.set(key, reviews);
+    if (reviews > (reviewsByTitle.get(key) ?? 0))
+      reviewsByTitle.set(key, reviews);
   }
 }
 function isLesserKnownVariant(title: string, reviews: number): boolean {
@@ -125,16 +129,29 @@ function isLesserKnownVariant(title: string, reviews: number): boolean {
 async function fetchSpyPage(
   page: number,
 ): Promise<{ total: number; candidates: spyGame[] }> {
-  const res = await fetch(
-    `https://steamspy.com/api.php?request=all&page=${page}`,
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const res = await fetch(
+        `https://steamspy.com/api.php?request=all&page=${page}`,
+      );
+      if (!res.ok) return { total: 0, candidates: [] };
+      const all = Object.values((await res.json()) as Record<string, spyGame>);
+      rememberReviews(all);
+      const candidates = all
+        .filter((g) => g.positive + g.negative >= MIN_REVIEWS)
+        .sort((a, b) => b.positive + b.negative - (a.positive + a.negative));
+      return { total: all.length, candidates };
+    } catch (err) {
+      console.log(
+        `SteamSpy page ${page} failed (attempt ${attempt}/4):`,
+        (err as Error).message,
+      );
+      await sleep(30_000);
+    }
+  }
+  throw new Error(
+    `SteamSpy page ${page} kept failing, stopping. Run the sync again later.`,
   );
-  if (!res.ok) return { total: 0, candidates: [] };
-  const all = Object.values((await res.json()) as Record<string, spyGame>);
-  rememberReviews(all);
-  const candidates = all
-    .filter((g) => g.positive + g.negative >= MIN_REVIEWS)
-    .sort((a, b) => b.positive + b.negative - (a.positive + a.negative));
-  return { total: all.length, candidates };
 }
 
 // Steam allows roughly 200 detail requests per 5 minutes. On a rate-limit
@@ -145,7 +162,9 @@ async function gsteamDetails(id: number): Promise<steamDetails | null> {
       `https://store.steampowered.com/api/appdetails?appids=${id}`,
     );
     if (res.status === 429 || res.status === 403) {
-      console.log(`Rate limited by Steam, waiting 60s (attempt ${attempt + 1})`);
+      console.log(
+        `Rate limited by Steam, waiting 60s (attempt ${attempt + 1})`,
+      );
       await sleep(60_000);
       continue;
     }
@@ -174,22 +193,36 @@ async function gsteamSpytags(id: number): Promise<string[]> {
 
 async function main() {
   // Games already in the database are skipped, by id and by title
-  const { data: existing, error: existingError } = await supabase
-    .from("games")
-    .select("steam_app_id,title");
-  if (existingError) throw existingError;
-  const knownIds = new Set<number>(
-    (existing ?? []).map((g) => Number(g.steam_app_id)),
+  const existing: { steam_app_id: number; title: string }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("games")
+      .select("steam_app_id,title")
+      .order("steam_app_id")
+      .range(from, from + 999);
+    if (error) throw error;
+    existing.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
+  }
+  const knownIds = new Set<number>(existing.map((g) => Number(g.steam_app_id)));
+  const knownTitles = new Set<string>(existing.map((g) => normalize(g.title)));
+  console.log(
+    `Database already has ${knownIds.size} games. Target: ${LIMIT} new.`,
   );
-  const knownTitles = new Set<string>(
-    (existing ?? []).map((g) => normalize(g.title)),
-  );
-  console.log(`Database already has ${knownIds.size} games. Target: ${LIMIT} new.`);
 
   let saved = 0;
-  const skipped = { known: 0, rejected: 0, variant: 0, duplicate: 0, nsfw: 0, other: 0 };
+  const skipped = {
+    known: 0,
+    rejected: 0,
+    variant: 0,
+    duplicate: 0,
+    nsfw: 0,
+    other: 0,
+  };
   console.log(`Remembered NSFW rejects from earlier runs: ${rejected.size}`);
 
+  let emptyPages = 0;
+  let failures = 0; // requests that failed in a row
   for (let page = 0; saved < LIMIT && page < MAX_PAGES; page++) {
     if (page > 0) await sleep(61_000); // SteamSpy "all" is limited to ~1/minute
     const { total, candidates } = await fetchSpyPage(page);
@@ -200,6 +233,13 @@ async function main() {
     console.log(
       `SteamSpy page ${page}: ${candidates.length} candidates (of ${total})`,
     );
+    // Pages come most-popular first, so once two in a row have nothing at or
+    // above MIN_REVIEWS, every later page is just as unpopular
+    emptyPages = candidates.length === 0 ? emptyPages + 1 : 0;
+    if (emptyPages >= 2) {
+      console.log("No more games with enough reviews, stopping.");
+      break;
+    }
 
     for (const spy of candidates) {
       if (saved >= LIMIT) break;
@@ -224,6 +264,7 @@ async function main() {
 
       try {
         const details = await gsteamDetails(spy.appid);
+        failures = 0; // that request got through
         await sleep(1500);
         if (!details) {
           skipped.other++;
@@ -263,13 +304,28 @@ async function main() {
         );
         if (error) throw error;
 
+        failures = 0;
         knownIds.add(spy.appid);
         knownTitles.add(normalize(details.name));
         saved++;
-        console.log(`[${saved}/${LIMIT}] Saved ${details.name} (appid: ${spy.appid})`);
+        console.log(
+          `[${saved}/${LIMIT}] Saved ${details.name} (appid: ${spy.appid})`,
+        );
       } catch (err) {
         skipped.other++;
-        console.error(`Skipping appid ${spy.appid}:`, err);
+        failures++;
+        console.error(`Skipping appid ${spy.appid}:`, (err as Error).message);
+        // Several failures in a row means the connection is down: wait, and
+        // give up after a few waits instead of skipping through every game
+        if (failures % 5 === 0) {
+          if (failures >= 20) {
+            throw new Error(
+              "Connection keeps failing, stopping. Run the sync again later.",
+            );
+          }
+          console.log("Connection problem, waiting 60s...");
+          await sleep(60_000);
+        }
       }
     }
   }

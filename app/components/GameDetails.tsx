@@ -5,76 +5,12 @@ import { motion } from "framer-motion";
 import type { Game } from "./Gamematch";
 import { jersey, pressStart } from "./fonts";
 import { NOTCH, px, scoreColor } from "./cardScale";
+import PixelPill from "./PixelPill";
 
 type Props = {
   game: Game;
   onClose: () => void;
 };
-
-// A button in the same style as the card's pill buttons: notched pixel corners,
-// black border and a hard drop shadow. Renders a link when given an href.
-function PixelPill({
-  color,
-  href,
-  onClick,
-  children,
-}: {
-  color: string;
-  href?: string;
-  onClick?: () => void;
-  children: React.ReactNode;
-}) {
-  const className =
-    "relative inline-block cursor-pointer active:translate-x-0.5 active:translate-y-0.5";
-  const style = { paddingRight: px(6), paddingBottom: px(6) };
-  const content = (
-    <>
-      {/* The shadow is the same shape, shifted down and to the right */}
-      <span
-        aria-hidden
-        className="absolute bg-black"
-        style={{
-          left: px(6),
-          top: px(6),
-          right: 0,
-          bottom: 0,
-          clipPath: NOTCH,
-        }}
-      />
-      <span
-        className="relative block bg-black"
-        style={{ padding: px(3), clipPath: NOTCH }}
-      >
-        <span
-          className={`${pressStart.className} block text-xs text-black`}
-          style={{
-            backgroundColor: color,
-            padding: `${px(8)} ${px(12)}`,
-            clipPath: NOTCH,
-          }}
-        >
-          {children}
-        </span>
-      </span>
-    </>
-  );
-
-  return href ? (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={className}
-      style={style}
-    >
-      {content}
-    </a>
-  ) : (
-    <button type="button" onClick={onClick} className={className} style={style}>
-      {content}
-    </button>
-  );
-}
 
 // The expanded view of one game: bigger image, full description, score, price
 // and a link to the Steam store page. Same pixel style as the card.
@@ -135,7 +71,7 @@ export default function GameDetails({ game, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="flex max-h-[88vh] flex-col bg-[#8ebdff]"
+          className="flex max-h-[88vh] flex-col bg-[#ffc400]"
           style={{ clipPath: NOTCH }}
         >
           <div className="overflow-y-auto p-5">
@@ -160,7 +96,7 @@ export default function GameDetails({ game, onClose }: Props) {
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {game.metacritic != null && (
               <span
-                className={`${pressStart.className} flex items-center gap-2 border-4 border-black bg-[#cfe3ff] px-2 py-1 text-[10px] text-black`}
+                className={`${pressStart.className} flex items-center gap-2 border-4 border-black bg-[#fff3c4] px-2 py-1 text-[10px] text-black`}
               >
                 METACRITIC
                 <span
@@ -173,7 +109,7 @@ export default function GameDetails({ game, onClose }: Props) {
             )}
             {price && (
               <span
-                className={`${pressStart.className} border-4 border-black bg-[#cfe3ff] px-2 py-1 text-[10px] text-black`}
+                className={`${pressStart.className} border-4 border-black bg-[#fff3c4] px-2 py-1 text-[10px] text-black`}
               >
                 {price}
               </span>
@@ -205,7 +141,7 @@ export default function GameDetails({ game, onClose }: Props) {
                   style={{ padding: px(3), clipPath: NOTCH }}
                 >
                   <span
-                    className={`${jersey.className} block bg-[#cfe3ff] px-2 text-lg leading-5 text-black`}
+                    className={`${jersey.className} block bg-[#e0201b] px-2 text-lg leading-5 text-white`}
                     style={{ clipPath: NOTCH }}
                   >
                     {tag}
@@ -219,10 +155,10 @@ export default function GameDetails({ game, onClose }: Props) {
 
           {/* Buttons stay visible while the description scrolls */}
           <div className="flex flex-wrap items-center gap-4 border-t-4 border-black px-5 pb-1 pt-4">
-            <PixelPill color="#ff6b2c" href={storeUrl}>
+            <PixelPill color="#e0201b" textColor="#fff" href={storeUrl} external>
               BUY ON STEAM
             </PixelPill>
-            <PixelPill color="#ff4d68" onClick={onClose}>
+            <PixelPill color="#ffffff" onClick={onClose}>
               CLOSE
             </PixelPill>
           </div>

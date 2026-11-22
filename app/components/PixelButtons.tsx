@@ -1,6 +1,7 @@
 // app/components/PixelButtons.tsx
 import Image from "next/image";
-import { px } from "./cardScale";
+import { px, ROUND } from "./cardScale";
+import PixelIcon, { type PixelIconName } from "./PixelIcon";
 import { pressStart } from "./fonts";
 
 type ExtraId = "grey" | "pink" | "red";
@@ -15,7 +16,7 @@ type Props = {
 const base =
   "absolute z-20 cursor-pointer border-0 bg-transparent p-0 leading-none " +
   "active:translate-x-0.5 active:translate-y-0.5 " +
-  "focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-[#5b7eff]";
+  "focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-[#ffc400]";
 
 // x and y are in design units, from the card's top-left. px() applies the scale.
 export default function PixelButtons({
@@ -27,7 +28,9 @@ export default function PixelButtons({
   const buttons: {
     label: string;
     text?: string; // optional words drawn on the button
-    src: string;
+    // round icon button: a fill color, an icon and the icon's color
+    round?: { color: string; icon: PixelIconName; iconColor: string };
+    src?: string; // otherwise the button is one of the pill images
     w: number;
     h: number;
     x: number;
@@ -36,7 +39,7 @@ export default function PixelButtons({
   }[] = [
     {
       label: "Pass",
-      src: "/btn-green.svg",
+      round: { color: "#e0201b", icon: "x", iconColor: "#ffffff" },
       w: 70,
       h: 70,
       x: -86,
@@ -45,7 +48,7 @@ export default function PixelButtons({
     },
     {
       label: "Save",
-      src: "/btn-orange.svg",
+      round: { color: "#ffc400", icon: "star", iconColor: "#000000" },
       w: 70,
       h: 70,
       x: 350,
@@ -107,14 +110,53 @@ export default function PixelButtons({
             height: px(b.h),
           }}
         >
-          <Image
-            src={b.src}
-            alt=""
-            width={b.w}
-            height={b.h}
-            className="h-full w-full"
-            unoptimized
-          />
+          {b.round ? (
+            <>
+              {/* The shadow is the same shape, shifted down and to the right */}
+              <span
+                aria-hidden
+                className="absolute bg-black"
+                style={{
+                  left: px(6),
+                  top: px(6),
+                  right: 0,
+                  bottom: 0,
+                  clipPath: ROUND,
+                }}
+              />
+              <span
+                className="absolute bg-black"
+                style={{
+                  left: 0,
+                  top: 0,
+                  width: px(64),
+                  height: px(64),
+                  padding: px(4),
+                  clipPath: ROUND,
+                }}
+              >
+                <span
+                  className="flex h-full w-full items-center justify-center"
+                  style={{ backgroundColor: b.round.color, clipPath: ROUND }}
+                >
+                  <PixelIcon
+                    name={b.round.icon}
+                    color={b.round.iconColor}
+                    size={px(26)}
+                  />
+                </span>
+              </span>
+            </>
+          ) : (
+            <Image
+              src={b.src!}
+              alt=""
+              width={b.w}
+              height={b.h}
+              className="h-full w-full"
+              unoptimized
+            />
+          )}
           {b.text && (
             <span
               className={`${pressStart.className} pointer-events-none absolute inset-0 flex items-center justify-center text-black`}

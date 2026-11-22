@@ -46,17 +46,46 @@ export interface GameWithMood {
 // sync script started filtering them.
 const NSFW_TAGS = ["nsfw", "hentai", "eroge"];
 
-export async function fetchGamesFromSupabase(): Promise<SteamGame[]> {
-  const { data, error } = await supabase.from("games").select("*");
+// Supabase returns at most 1000 rows per request, so the table is read in
+// pages of 1000 (in parallel) and joined. Only the columns the app uses are
+// requested, which keeps the download small even with thousands of games.
+const PAGE_SIZE = 1000;
+const GAME_COLUMNS =
+  "steam_app_id,title,released,metacritic,short_description,header_url,genres,categories,tags";
 
-  if (error) {
-    console.error("Error fetching games:", error);
+export async function fetchGamesFromSupabase(): Promise<SteamGame[]> {
+  const { count, error: countError } = await supabase
+    .from("games")
+    .select("steam_app_id", { count: "exact", head: true });
+
+  if (countError || count === null) {
+    console.error("Error counting games:", countError);
     return [];
   }
 
-  return (data || []).filter(
-    (g: SteamGame) =>
-      !(g.tags ?? []).some((t) => NSFW_TAGS.includes(t.toLowerCase())),
+  // Ordered by id so the pages never overlap or skip a row
+  const pages = await Promise.all(
+    Array.from({ length: Math.ceil(count / PAGE_SIZE) }, (_, i) =>
+      supabase
+        .from("games")
+        .select(GAME_COLUMNS)
+        .order("steam_app_id")
+        .range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1),
+    ),
+  );
+
+  const games: SteamGame[] = [];
+  for (const { data, error } of pages) {
+    if (error) {
+      console.error("Error fetching games:", error);
+      return [];
+    }
+    games.push(...((data ?? []) as SteamGame[]));
+  }
+
+  // Hide NSFW games that were stored before the sync script filtered them
+  return games.filter(
+    (g) => !(g.tags ?? []).some((t) => NSFW_TAGS.includes(t.toLowerCase())),
   );
 }
 
@@ -148,6 +177,16 @@ export function generateBgColor(rating: number): string {
   return colors[Math.floor(rating * colors.length) % colors.length];
 }
 
+// Steam descriptions contain HTML entities such as &amp; and &quot;
+function decodeEntities(text: string | null): string {
+  return (text ?? "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
 export function enrichGameData(game: SteamGame): GameWithMood {
   // Steam dates look like "14 Aug, 2025", so find the 4-digit year anywhere in it
   const yearMatch = game.released?.match(/\b(19|20)\d{2}\b/);
@@ -168,7 +207,9 @@ export function enrichGameData(game: SteamGame): GameWithMood {
     categories: game.categories,
     tags: game.tags,
     year,
-    summary: game.short_description || `A ${game.genres.join(", ")} game`,
+    summary:
+      decodeEntities(game.short_description) ||
+      `A ${game.genres.join(", ")} game`,
     mood,
     emoji,
     bg,
