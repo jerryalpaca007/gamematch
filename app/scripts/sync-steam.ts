@@ -17,9 +17,10 @@ const MIN_REVIEWS = Number(process.env.SYNC_MIN_REVIEWS ?? 500);
 // spin-off, side story) when it has fewer than this share of the reviews of the
 // base game. Popular sequels like "Hollow Knight: Silksong" pass easily.
 const VARIANT_RATIO = Number(process.env.SYNC_VARIANT_RATIO ?? 0.25);
-// SteamSpy's list is 1000 games per page and can only be read about once a
-// minute, so stop after this many pages even if the target isn't reached
-const MAX_PAGES = Number(process.env.SYNC_MAX_PAGES ?? 10);
+// Steam's search lists games 100 per page. The list has well over 100,000
+// entries, so stop after this many pages (100 games each) even if the target
+// isn't reached. The early pages are the better-known games.
+const MAX_PAGES = Number(process.env.SYNC_MAX_PAGES ?? 300);
 
 // NSFW games are remembered here so later runs skip them without spending
 // Steam requests
@@ -32,6 +33,25 @@ const rejected = new Set<number>(
     ? (JSON.parse(fs.readFileSync(REJECTED_FILE, "utf8")) as number[])
     : [],
 );
+// Games Steam lists but SteamSpy has no tags for are NOT saved to the database.
+// They go in this text file instead (one per line: "appid | title"), so their
+// tags can be filled in from another source later.
+const NEEDS_TAGS_FILE = path.join(process.cwd(), "app/scripts/needs-tags.txt");
+const needsTags = new Set<number>(
+  fs.existsSync(NEEDS_TAGS_FILE)
+    ? fs
+        .readFileSync(NEEDS_TAGS_FILE, "utf8")
+        .split("\n")
+        .map((line) => Number(line.split("|")[0].trim()))
+        .filter((id) => id > 0)
+    : [],
+);
+function addToNeedsTags(appid: number, title: string) {
+  if (needsTags.has(appid)) return;
+  needsTags.add(appid);
+  fs.appendFileSync(NEEDS_TAGS_FILE, `${appid} | ${title}\n`);
+}
+
 const saveRejected = () =>
   fs.writeFileSync(REJECTED_FILE, JSON.stringify([...rejected]));
 // Saved to disk every 25 new rejects, so an interrupted run keeps its progress
@@ -60,11 +80,10 @@ type steamDetails = {
   content_descriptors?: { ids: number[] };
 };
 
-type spyGame = {
+type candidate = {
   appid: number;
   name: string;
-  positive: number;
-  negative: number;
+  reviews: number; // total Steam user reviews
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -105,15 +124,14 @@ const hasNsfwDescriptor = (d: steamDetails) =>
 const hasNsfwTag = (tags: string[]) =>
   tags.some((t) => NSFW_TAGS.includes(t.toLowerCase()));
 
-// Total Steam reviews by title, filled from every SteamSpy page we read.
+// Total Steam reviews by title, filled from every search page we read.
 // Used to tell whether a "Game: Subtitle" entry is much less known than its base.
 const reviewsByTitle = new Map<string, number>();
-function rememberReviews(games: spyGame[]) {
+function rememberReviews(games: candidate[]) {
   for (const g of games) {
     const key = normalize(g.name);
-    const reviews = g.positive + g.negative;
-    if (reviews > (reviewsByTitle.get(key) ?? 0))
-      reviewsByTitle.set(key, reviews);
+    if (g.reviews > (reviewsByTitle.get(key) ?? 0))
+      reviewsByTitle.set(key, g.reviews);
   }
 }
 function isLesserKnownVariant(title: string, reviews: number): boolean {
@@ -123,34 +141,77 @@ function isLesserKnownVariant(title: string, reviews: number): boolean {
   return baseReviews !== undefined && reviews < baseReviews * VARIANT_RATIO;
 }
 
-// One page of SteamSpy's game list (1000 games), most-reviewed first.
-// SteamSpy allows this request only about once a minute, so callers wait.
-// Returns how many games the page had in total, and the ones worth checking.
-async function fetchSpyPage(
+// Steam's search results come back as HTML inside JSON, so titles contain
+// entities such as &amp; and &#8482;
+const decodeHtml = (text: string) =>
+  text
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) =>
+      String.fromCodePoint(parseInt(h, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+
+// One page of Steam's own game search (100 games), the same list the store
+// website shows. Returns how many games the page listed, how many games Steam
+// lists in total, and the ones worth checking (enough reviews).
+async function fetchSearchPage(
   page: number,
-): Promise<{ total: number; candidates: spyGame[] }> {
+): Promise<{ listed: number; total: number; candidates: candidate[] }> {
+  const url =
+    `https://store.steampowered.com/search/results/?query&start=${page * 100}` +
+    `&count=100&category1=998&supportedlang=english&infinite=1`;
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
-      const res = await fetch(
-        `https://steamspy.com/api.php?request=all&page=${page}`,
-      );
-      if (!res.ok) return { total: 0, candidates: [] };
-      const all = Object.values((await res.json()) as Record<string, spyGame>);
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+      });
+      if (res.status === 429 || res.status === 403) {
+        console.log(
+          `Steam search rate limited, waiting 60s (attempt ${attempt})`,
+        );
+        await sleep(60_000);
+        continue;
+      }
+      if (!res.ok) throw new Error(`Steam search returned ${res.status}`);
+      const json = (await res.json()) as {
+        results_html: string;
+        total_count: number;
+      };
+
+      // One <a ...> block per game
+      const all: candidate[] = [];
+      for (const block of json.results_html.split("<a ").slice(1)) {
+        const id = block.match(/data-ds-appid="(\d+)/);
+        const title = block.match(/<span class="title">(.*?)<\/span>/);
+        if (!id || !title) continue;
+        const rev = block
+          .replace(/&lt;br&gt;|<br>/g, " ")
+          .match(/of the ([\d,]+) user reviews/);
+        all.push({
+          appid: Number(id[1]),
+          name: decodeHtml(title[1]),
+          reviews: rev ? Number(rev[1].replace(/,/g, "")) : 0,
+        });
+      }
       rememberReviews(all);
       const candidates = all
-        .filter((g) => g.positive + g.negative >= MIN_REVIEWS)
-        .sort((a, b) => b.positive + b.negative - (a.positive + a.negative));
-      return { total: all.length, candidates };
+        .filter((g) => g.reviews >= MIN_REVIEWS)
+        .sort((a, b) => b.reviews - a.reviews);
+      return { listed: all.length, total: json.total_count, candidates };
     } catch (err) {
       console.log(
-        `SteamSpy page ${page} failed (attempt ${attempt}/4):`,
+        `Steam search page ${page} failed (attempt ${attempt}/4):`,
         (err as Error).message,
       );
-      await sleep(30_000);
+      await sleep(15_000);
     }
   }
   throw new Error(
-    `SteamSpy page ${page} kept failing, stopping. Run the sync again later.`,
+    `Steam search page ${page} kept failing, stopping. Run the sync again later.`,
   );
 }
 
@@ -159,7 +220,7 @@ async function fetchSpyPage(
 async function gsteamDetails(id: number): Promise<steamDetails | null> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const res = await fetch(
-      `https://store.steampowered.com/api/appdetails?appids=${id}`,
+      `https://store.steampowered.com/api/appdetails?appids=${id}&cc=us&l=english`,
     );
     if (res.status === 429 || res.status === 403) {
       console.log(
@@ -179,6 +240,7 @@ async function gsteamDetails(id: number): Promise<steamDetails | null> {
   return null;
 }
 
+// The game's player-made tags from SteamSpy (empty if SteamSpy has none)
 async function gsteamSpytags(id: number): Promise<string[]> {
   const res = await fetch(
     `https://steamspy.com/api.php?request=appdetails&appid=${id}`,
@@ -212,6 +274,7 @@ async function main() {
 
   let saved = 0;
   const skipped = {
+    noTags: 0,
     known: 0,
     rejected: 0,
     variant: 0,
@@ -221,25 +284,20 @@ async function main() {
   };
   console.log(`Remembered NSFW rejects from earlier runs: ${rejected.size}`);
 
-  let emptyPages = 0;
   let failures = 0; // requests that failed in a row
   for (let page = 0; saved < LIMIT && page < MAX_PAGES; page++) {
-    if (page > 0) await sleep(61_000); // SteamSpy "all" is limited to ~1/minute
-    const { total, candidates } = await fetchSpyPage(page);
-    if (total === 0) {
-      console.log(`SteamSpy page ${page} returned no more games, stopping.`);
+    if (page > 0) await sleep(1000);
+    const { listed, total, candidates } = await fetchSearchPage(page);
+    if (listed === 0) {
+      console.log(
+        `Steam search page ${page} returned no more games, stopping.`,
+      );
       break;
     }
     console.log(
-      `SteamSpy page ${page}: ${candidates.length} candidates (of ${total})`,
+      `Steam search page ${page}: ${candidates.length} candidates ` +
+        `(of ${listed}; Steam lists ${total} games in all)`,
     );
-    // Pages come most-popular first, so once two in a row have nothing at or
-    // above MIN_REVIEWS, every later page is just as unpopular
-    emptyPages = candidates.length === 0 ? emptyPages + 1 : 0;
-    if (emptyPages >= 2) {
-      console.log("No more games with enough reviews, stopping.");
-      break;
-    }
 
     for (const spy of candidates) {
       if (saved >= LIMIT) break;
@@ -247,6 +305,10 @@ async function main() {
       // Cheap checks first, before any Steam request
       if (knownIds.has(spy.appid)) {
         skipped.known++;
+        continue;
+      }
+      if (needsTags.has(spy.appid)) {
+        skipped.noTags++;
         continue;
       }
       if (rejected.has(spy.appid)) {
@@ -257,7 +319,7 @@ async function main() {
         skipped.duplicate++;
         continue;
       }
-      if (isLesserKnownVariant(spy.name, spy.positive + spy.negative)) {
+      if (isLesserKnownVariant(spy.name, spy.reviews)) {
         skipped.variant++;
         continue;
       }
@@ -282,6 +344,11 @@ async function main() {
 
         const tags = await gsteamSpytags(spy.appid);
         await sleep(1000);
+        if (tags.length === 0) {
+          addToNeedsTags(spy.appid, details.name);
+          skipped.noTags++;
+          continue;
+        }
         if (hasNsfwTag(tags)) {
           skipped.nsfw++;
           reject(spy.appid);
@@ -334,7 +401,7 @@ async function main() {
   console.log(
     `Done. Saved ${saved} new games. Skipped: ${skipped.known} already stored, ` +
       `${skipped.rejected} remembered NSFW, ${skipped.duplicate} same name, ` +
-      `${skipped.variant} lesser-known variants, ` +
+      `${skipped.variant} lesser-known variants, ${skipped.noTags} without tags (listed in needs-tags.txt), ` +
       `${skipped.nsfw} NSFW, ${skipped.other} other.`,
   );
 

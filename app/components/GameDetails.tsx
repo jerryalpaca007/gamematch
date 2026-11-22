@@ -75,87 +75,73 @@ export default function GameDetails({ game, onClose }: Props) {
           style={{ clipPath: NOTCH }}
         >
           <div className="overflow-y-auto p-5">
-          {game.header_url && (
-            <img
-              src={game.header_url}
-              alt={game.title}
-              className="w-full border-4 border-black"
-            />
-          )}
-
-          <h2
-            className={`${pressStart.className} mt-4 text-base leading-6 text-black`}
-          >
-            {game.title}
-          </h2>
-          <p className={`${jersey.className} mt-1 text-xl text-black/70`}>
-            {genres} • {game.year}
-          </p>
-
-          {/* Score and price */}
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            {game.metacritic != null && (
-              <span
-                className={`${pressStart.className} flex items-center gap-2 border-4 border-black bg-[#fff3c4] px-2 py-1 text-[10px] text-black`}
-              >
-                METACRITIC
-                <span
-                  className="border-2 border-black px-1.5 py-0.5"
-                  style={{ backgroundColor: scoreColor(game.metacritic) }}
-                >
-                  {game.metacritic}
-                </span>
-              </span>
+            {game.header_url && (
+              <img
+                src={game.header_url}
+                alt={game.title}
+                className="w-full border-4 border-black"
+              />
             )}
-            {price && (
-              <span
-                className={`${pressStart.className} border-4 border-black bg-[#fff3c4] px-2 py-1 text-[10px] text-black`}
-              >
-                {price}
-              </span>
-            )}
-          </div>
 
-          {/* Full description, or the short one while loading or if Steam fails */}
-          <h3 className={`${pressStart.className} mt-5 text-[10px] text-black`}>
-            ABOUT
-          </h3>
-          <p
-            className={`${jersey.className} mt-2 whitespace-pre-line text-xl leading-6 text-black`}
-          >
-            {description ?? game.summary}
-          </p>
-          {loading && (
-            <p className={`${jersey.className} mt-1 text-lg text-black/60`}>
-              Loading full description...
+            <h2
+              className={`${pressStart.className} mt-4 text-base leading-6 text-black`}
+            >
+              {game.title}
+            </h2>
+            <p className={`${jersey.className} mt-1 text-xl text-black/70`}>
+              {genres} • {game.year}
             </p>
-          )}
 
-          {/* Tags */}
-          {game.tags && game.tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {game.tags.slice(0, 10).map((tag) => (
+            {/* Score and price */}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              {game.metacritic != null && (
                 <span
-                  key={tag}
-                  className="inline-block bg-black"
-                  style={{ padding: px(3), clipPath: NOTCH }}
+                  className={`${pressStart.className} flex items-center gap-2 border-4 border-black bg-[#fff3c4] px-2 py-1 text-[10px] text-black`}
                 >
+                  METACRITIC
                   <span
-                    className={`${jersey.className} block bg-[#e0201b] px-2 text-lg leading-5 text-white`}
-                    style={{ clipPath: NOTCH }}
+                    className="border-2 border-black px-1.5 py-0.5"
+                    style={{ backgroundColor: scoreColor(game.metacritic) }}
                   >
-                    {tag}
+                    {game.metacritic}
                   </span>
                 </span>
-              ))}
+              )}
+              {price && (
+                <span
+                  className={`${pressStart.className} border-4 border-black bg-[#fff3c4] px-2 py-1 text-[10px] text-black`}
+                >
+                  {price}
+                </span>
+              )}
             </div>
-          )}
 
+            {/* Full description, or the short one while loading or if Steam fails */}
+            <h3
+              className={`${pressStart.className} mt-5 text-[10px] text-black`}
+            >
+              ABOUT
+            </h3>
+            <p
+              className={`${jersey.className} mt-2 whitespace-pre-line text-xl leading-6 text-black`}
+            >
+              {description ?? game.summary}
+            </p>
+            {loading && (
+              <p className={`${jersey.className} mt-1 text-lg text-black/60`}>
+                Loading full description...
+              </p>
+            )}
           </div>
 
           {/* Buttons stay visible while the description scrolls */}
           <div className="flex flex-wrap items-center gap-4 border-t-4 border-black px-5 pb-1 pt-4">
-            <PixelPill color="#e0201b" textColor="#fff" href={storeUrl} external>
+            <PixelPill
+              color="#e0201b"
+              textColor="#fff"
+              href={storeUrl}
+              external
+            >
               BUY ON STEAM
             </PixelPill>
             <PixelPill color="#ffffff" onClick={onClose}>
