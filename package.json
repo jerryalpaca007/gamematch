@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "sync": "tsx app/scripts/sync-rawg.ts",
-    "seed": "tsx app/scripts/seed-games.ts"
+    "sync-steam": "tsx app/scripts/sync-steam.ts 2>&1 | tee app/scripts/sync.log",
+    "sync-status": "tsx app/scripts/sync-status.ts",
+    "sync-requirements": "tsx app/scripts/sync-requirements.ts 2>&1 | tee app/scripts/sync-requirements.log"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

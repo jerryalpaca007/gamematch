@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
 import * as path from "path";
 import * as fs from "fs";
+import { parseRequirements } from "../lib/requirements";
 
 // Load .env.local file
 dotenv.config({ path: path.join(process.cwd(), ".env.local") });
@@ -78,6 +79,7 @@ type steamDetails = {
   genres?: { description: string }[];
   categories?: { description: string }[];
   content_descriptors?: { ids: number[] };
+  pc_requirements?: { minimum?: string };
 };
 
 type candidate = {
@@ -254,6 +256,18 @@ async function gsteamSpytags(id: number): Promise<string[]> {
 }
 
 async function main() {
+  // The hardware columns exist only after the SQL for them has been run
+  const { error: probe } = await supabase
+    .from("games")
+    .select("min_ram_gb")
+    .limit(1);
+  const hasHardwareColumns = !probe;
+  if (!hasHardwareColumns) {
+    console.log(
+      "Note: the table has no min_ram_gb / min_graphics / integrated_ok columns yet, so system requirements will not be saved. Run the SQL from the chat in Supabase first.",
+    );
+  }
+
   // Games already in the database are skipped, by id and by title
   const existing: { steam_app_id: number; title: string }[] = [];
   for (let from = 0; ; from += 1000) {
@@ -366,6 +380,16 @@ async function main() {
             genres: details.genres?.map((g) => g.description) ?? [],
             categories: details.categories?.map((c) => c.description) ?? [],
             tags,
+            ...(hasHardwareColumns
+              ? (() => {
+                  const r = parseRequirements(details.pc_requirements?.minimum);
+                  return {
+                    min_ram_gb: r.minRamGb,
+                    min_graphics: r.minGraphics,
+                    integrated_ok: r.integratedOk,
+                  };
+                })()
+              : {}),
           },
           { onConflict: "steam_app_id" },
         );

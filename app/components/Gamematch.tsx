@@ -18,21 +18,18 @@ import {
 } from "framer-motion";
 import { RotateCcw } from "lucide-react";
 import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
-import PixelButtons from "./PixelButtons";
+import ActionButtons from "./ActionButtons";
 import GameDetails from "./GameDetails";
-import { jersey, pressStart } from "./fonts";
-import { S, px, CARD_W, CARD_H, NOTCH, scoreColor } from "./cardScale";
+import Pile, { PileList } from "./GamePiles";
+import { uiFont, displayFont } from "./fonts";
+import CardFace from "./CardFace";
+import { MOODS, type MoodScores } from "./moods";
+import { S, px, CARD_W, CARD_H } from "./cardScale";
+import RetroWindow from "./RetroWindow";
+import RetroButton from "./RetroButton";
 
 // ---------- Types ----------
 // A type describes the shape of data, so TypeScript can catch mistakes.
-
-interface MoodScores {
-  excitement: number;
-  chill: number;
-  puzzle: number;
-  story: number;
-  challenge: number;
-}
 
 export interface Game {
   steam_app_id: number;
@@ -47,21 +44,16 @@ export interface Game {
   metacritic?: number | null;
   tags?: string[];
   categories?: string[];
+  // hardware needs from Steam's minimum requirements (null = not known)
+  min_ram_gb?: number | null;
+  min_graphics?: string | null;
+  integrated_ok?: boolean | null;
   jitter?: number; // random 0-1, picked once per page load, so the deck order varies
 }
 
 // How much the random bonus can move a game in the ranking. A game's mood
 // score is roughly 20-60, so this mixes things up without ignoring the sliders.
 const JITTER_WEIGHT = 25;
-
-// Each mood has a key (used in code) and a label (shown to the user)
-const MOODS: { key: keyof MoodScores; label: string }[] = [
-  { key: "excitement", label: "Excitement" },
-  { key: "chill", label: "Chill" },
-  { key: "puzzle", label: "Puzzle / Think" },
-  { key: "story", label: "Story" },
-  { key: "challenge", label: "Challenge" },
-];
 
 const DEFAULT_GAMES: Game[] = [];
 
@@ -70,6 +62,10 @@ const PRELOAD_AHEAD = 6;
 
 // Below this screen width there is no room for buttons beside the card
 const NARROW_BELOW = 770;
+
+// From this screen width the passed and saved piles sit beside the card;
+// narrower screens put them in a row underneath
+const WIDE_FROM = 1200;
 
 // ---------- Main component ----------
 export default function GameMatch() {
@@ -88,13 +84,20 @@ export default function GameMatch() {
   const [viewing, setViewing] = useState<Game | null>(null);
   const [seenIds, setSeenIds] = useState<Set<number>>(new Set());
   const [savedGames, setSavedGames] = useState<Game[]>([]);
+  const [passedGames, setPassedGames] = useState<Game[]>([]);
+  // Which pile's full list is open, if any
+  const [pileOpen, setPileOpen] = useState<"passed" | "saved" | null>(null);
   // The swipe in progress: which game is flying off and which way (1 = right,
   // -1 = left). The game only counts as seen once it has finished leaving.
   const [leaving, setLeaving] = useState<{ id: number; dir: 1 | -1 } | null>(
     null,
   );
   // Size of the console: full size on desktop, shrunk to fit the card on phones
-  const [layout, setLayout] = useState({ scale: S, narrow: false });
+  const [layout, setLayout] = useState({
+    scale: S,
+    narrow: false,
+    wide: false,
+  });
   useEffect(() => {
     const fit = () => {
       // innerWidth can be inflated by wide content on phones, so also look at
@@ -105,7 +108,12 @@ export default function GameMatch() {
         window.screen.width,
       );
       const narrow = w < NARROW_BELOW;
-      setLayout({ narrow, scale: narrow ? Math.min(S, (w - 24) / 335) : S });
+      setLayout({
+        narrow,
+        // room for a pile on each side of the card
+        wide: w >= WIDE_FROM,
+        scale: narrow ? Math.min(S, (w - 24) / 335) : S,
+      });
     };
     fit();
     window.addEventListener("resize", fit);
@@ -195,11 +203,14 @@ export default function GameMatch() {
     // Create a new Set instead of changing the old one, so React sees the update
     setSeenIds((prev) => new Set(prev).add(leaving.id));
     if (game && leaving.dir === 1) setSavedGames((prev) => [...prev, game]);
+    if (game && leaving.dir === -1) setPassedGames((prev) => [...prev, game]);
     setLeaving(null);
   };
 
   const handleReset = () => {
     setSeenIds(new Set());
+    setSavedGames([]);
+    setPassedGames([]);
   };
 
   return (
@@ -216,8 +227,12 @@ export default function GameMatch() {
           className="relative shrink-0"
           style={{
             width: CARD_W,
-            // on phones the buttons sit under the card, so reserve their row
-            height: layout.narrow ? `calc(${CARD_H} + ${px(110)})` : CARD_H,
+            // room under the card for the phone button row and/or the piles
+            height: layout.wide
+              ? CARD_H
+              : layout.narrow
+                ? `calc(${CARD_H} + ${px(350)})`
+                : `calc(${CARD_H} + ${px(270)})`,
           }}
         >
           <div
@@ -238,46 +253,75 @@ export default function GameMatch() {
               />
             ))}
 
-            {/* Empty state: the same panel, with the message inside */}
+            {/* Empty state: a window with the message inside */}
             {!currentGame && (
-              <div
-                className="absolute inset-0 bg-black"
-                style={{ padding: px(3), clipPath: NOTCH }}
+              <RetroWindow
+                title="GameMatch.exe"
+                className="absolute inset-0 flex flex-col"
+                bodyClassName="flex flex-1 flex-col items-center justify-center gap-6 p-4 text-center"
               >
-                <div
-                  className="flex h-full flex-col items-center justify-center gap-6 bg-[#ffc400] p-5 text-center"
-                  style={{ clipPath: NOTCH }}
+                <p
+                  className={`${uiFont.className} leading-tight text-[#ece9ff]`}
+                  style={{ fontSize: px(20) }}
                 >
-                  <p
-                    className={`${jersey.className} leading-tight text-black`}
-                    style={{ fontSize: px(20) }}
-                  >
-                    You've seen every game in the deck!
-                  </p>
-                  <button
-                    onClick={handleReset}
-                    className={`${pressStart.className} flex items-center gap-2 border-4 border-black bg-[#e0201b] px-3 py-2 text-[10px] text-white active:translate-x-0.5 active:translate-y-0.5`}
-                  >
-                    <RotateCcw className="h-3 w-3" /> Reset
-                  </button>
-                </div>
-              </div>
+                  {loading
+                    ? "Loading games..."
+                    : "You've seen every game in the deck!"}
+                </p>
+                {!loading && (
+                  <RetroButton variant="magenta" onClick={handleReset}>
+                    <RotateCcw className="h-4 w-4" /> Reset
+                  </RetroButton>
+                )}
+              </RetroWindow>
             )}
           </div>
 
           {/* Pixel buttons: green = pass, orange = save, the rest are decorative */}
           {currentGame && (
-            <PixelButtons
+            <ActionButtons
               narrow={layout.narrow}
               onPass={() => requestSwipe(false)}
               onLike={() => requestSwipe(true)}
-              onExtra={(id) => {
-                if (id === "grey" && currentGame) setViewing(currentGame);
-              }}
+              onView={() => currentGame && setViewing(currentGame)}
             />
           )}
+
+          {/* The passed and saved piles. Wide screens: one on each side of the
+              card. Otherwise: side by side under the card (and under the button
+              row on phones). x and y are design units from the card's corner. */}
+          <Pile
+            label="PASSED"
+            games={passedGames}
+            accent="#d62fb8"
+            x={layout.wide ? -274 : 0}
+            y={layout.wide ? 110 : layout.narrow ? 600 : 520}
+            onClick={() => setPileOpen("passed")}
+          />
+          <Pile
+            label="SAVED"
+            games={savedGames}
+            accent="#4fe3f0"
+            x={layout.wide ? 477 : 183}
+            y={layout.wide ? 110 : layout.narrow ? 600 : 520}
+            onClick={() => setPileOpen("saved")}
+          />
         </div>
       </div>
+
+      <AnimatePresence>
+        {pileOpen && (
+          <PileList
+            title={pileOpen === "passed" ? "PASSED" : "SAVED"}
+            games={pileOpen === "passed" ? passedGames : savedGames}
+            onOpen={(game) => {
+              setPileOpen(null);
+              setViewing(game);
+            }}
+            onClose={() => setPileOpen(null)}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {viewing && (
@@ -372,126 +416,25 @@ function SwipeCard({
       onDragEnd={handleDragEnd}
       className="absolute inset-0 cursor-grab active:cursor-grabbing"
     >
-      {/* Black outer shape + light-blue inner shape, both with notched corners */}
-      <div
-        className="h-full w-full bg-black"
-        style={{ padding: px(3), clipPath: NOTCH }}
-      >
-        <div
-          className="relative flex h-full flex-col bg-[#ffc400] p-5"
-          style={{ clipPath: NOTCH }}
-        >
-          <div className="flex h-full flex-col">
-            {/* Cover image. The box has Steam's header aspect ratio, so the whole
-                image shows with no cropping and the space is reserved while it loads */}
-            <div
-              className="relative w-full shrink-0 border-4 border-black"
-              style={{ backgroundColor: game.bg, aspectRatio: "460 / 215" }}
+      <CardFace game={game}>
+        {/* SAVE and PASS stamps: only on the top card */}
+        {isTop && (
+          <>
+            <motion.div
+              style={{ opacity: opacityLike }}
+              className={`${displayFont.className} pointer-events-none absolute right-8 top-10 z-10 rotate-12 retro-raised bg-[#31e08a] px-2 py-1 text-xs text-[#14122b]`}
             >
-              {game.header_url && (
-                <img
-                  src={game.header_url}
-                  alt={game.title}
-                  draggable={false}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-              )}
-            </div>
-
-            {/* SAVE and PASS stamps: only on the top card */}
-            {isTop && (
-              <>
-                <motion.div
-                  style={{ opacity: opacityLike }}
-                  className={`${pressStart.className} pointer-events-none absolute right-8 top-10 z-10 rotate-12 border-4 border-black bg-[#3dff6e] px-2 py-1 text-xs text-black`}
-                >
-                  SAVE
-                </motion.div>
-                <motion.div
-                  style={{ opacity: opacityNope }}
-                  className={`${pressStart.className} pointer-events-none absolute left-8 top-10 z-10 -rotate-12 border-4 border-black bg-[#e0201b] px-2 py-1 text-xs text-white`}
-                >
-                  PASS
-                </motion.div>
-              </>
-            )}
-
-            <h3
-              className={`${pressStart.className} mt-4 line-clamp-2 text-black`}
-              style={{ fontSize: px(10), lineHeight: px(14) }}
+              SAVE
+            </motion.div>
+            <motion.div
+              style={{ opacity: opacityNope }}
+              className={`${displayFont.className} pointer-events-none absolute left-8 top-10 z-10 -rotate-12 retro-raised bg-[#d62fb8] px-2 py-1 text-xs text-white`}
             >
-              {game.title}
-            </h3>
-            <p
-              className={`${jersey.className} mt-1 line-clamp-1 text-black/70`}
-              style={{ fontSize: px(15), lineHeight: px(15) }}
-            >
-              {Array.isArray(game.genres)
-                ? game.genres.join(", ")
-                : game.genres}{" "}
-              • {game.year}
-            </p>
-            <p
-              className={`${jersey.className} mt-2 line-clamp-5 text-black`}
-              style={{ fontSize: px(15), lineHeight: px(15) }}
-            >
-              {game.summary}
-            </p>
-
-            {/* Mood tags on the left, Metacritic score square on the right */}
-            <div className="mt-auto flex items-end justify-between gap-3">
-              <div className="flex flex-wrap gap-1.5">
-                {MOODS.filter((m) => game.mood[m.key] >= 4).map((m) => (
-                  <span
-                    key={m.key}
-                    className="inline-block bg-black"
-                    style={{ padding: px(3), clipPath: NOTCH }}
-                  >
-                    <span
-                      className={`${jersey.className} block bg-[#e0201b] text-white`}
-                      style={{
-                        fontSize: px(13),
-                        lineHeight: px(17),
-                        padding: `0 ${px(6)}`,
-                        clipPath: NOTCH,
-                      }}
-                    >
-                      {m.label}
-                    </span>
-                  </span>
-                ))}
-              </div>
-              <span
-                className="inline-block shrink-0 bg-black"
-                style={{ padding: px(3), clipPath: NOTCH }}
-              >
-                <span
-                  className={`${pressStart.className} flex items-center justify-center text-black`}
-                  style={{
-                    width: px(59),
-                    height: px(59),
-                    fontSize: px(
-                      game.metacritic != null && game.metacritic >= 100
-                        ? 14
-                        : 20,
-                    ),
-                    backgroundColor:
-                      game.metacritic != null
-                        ? scoreColor(game.metacritic)
-                        : "#fff3c4",
-                    clipPath: NOTCH,
-                  }}
-                >
-                  {game.metacritic ?? "--"}
-                </span>
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+              PASS
+            </motion.div>
+          </>
+        )}
+      </CardFace>
     </motion.div>
   );
 }

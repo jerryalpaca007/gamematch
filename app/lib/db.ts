@@ -19,6 +19,10 @@ export interface SteamGame {
   genres: string[];
   categories: string[];
   tags: string[];
+  // Hardware needs, read from Steam's minimum requirements (null = not known)
+  min_ram_gb?: number | null;
+  min_graphics?: string | null;
+  integrated_ok?: boolean | null;
 }
 
 export interface GameWithMood {
@@ -29,6 +33,9 @@ export interface GameWithMood {
   genres: string[];
   categories: string[];
   tags: string[];
+  min_ram_gb?: number | null;
+  min_graphics?: string | null;
+  integrated_ok?: boolean | null;
   emoji: string;
   year: number;
   summary: string;
@@ -50,8 +57,33 @@ const NSFW_TAGS = ["nsfw", "hentai", "eroge"];
 // pages of 1000 (in parallel) and joined. Only the columns the app uses are
 // requested, which keeps the download small even with thousands of games.
 const PAGE_SIZE = 1000;
-const GAME_COLUMNS =
+const BASE_COLUMNS =
   "steam_app_id,title,released,metacritic,short_description,header_url,genres,categories,tags";
+// The hardware columns only exist once the SQL for them has been run in Supabase.
+// If they are missing, the games are read without them and everything else works.
+const GAME_COLUMNS = `${BASE_COLUMNS},min_ram_gb,min_graphics,integrated_ok`;
+
+async function readAllGames(
+  columns: string,
+  count: number,
+): Promise<{ games: SteamGame[]; failed: boolean }> {
+  // Ordered by id so the pages never overlap or skip a row
+  const pages = await Promise.all(
+    Array.from({ length: Math.ceil(count / PAGE_SIZE) }, (_, i) =>
+      supabase
+        .from("games")
+        .select(columns)
+        .order("steam_app_id")
+        .range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1),
+    ),
+  );
+  const games: SteamGame[] = [];
+  for (const { data, error } of pages) {
+    if (error) return { games: [], failed: true };
+    games.push(...((data ?? []) as unknown as SteamGame[]));
+  }
+  return { games, failed: false };
+}
 
 export async function fetchGamesFromSupabase(): Promise<SteamGame[]> {
   const { count, error: countError } = await supabase
@@ -63,24 +95,11 @@ export async function fetchGamesFromSupabase(): Promise<SteamGame[]> {
     return [];
   }
 
-  // Ordered by id so the pages never overlap or skip a row
-  const pages = await Promise.all(
-    Array.from({ length: Math.ceil(count / PAGE_SIZE) }, (_, i) =>
-      supabase
-        .from("games")
-        .select(GAME_COLUMNS)
-        .order("steam_app_id")
-        .range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1),
-    ),
-  );
-
-  const games: SteamGame[] = [];
-  for (const { data, error } of pages) {
-    if (error) {
-      console.error("Error fetching games:", error);
-      return [];
-    }
-    games.push(...((data ?? []) as SteamGame[]));
+  let { games, failed } = await readAllGames(GAME_COLUMNS, count);
+  if (failed) ({ games, failed } = await readAllGames(BASE_COLUMNS, count));
+  if (failed) {
+    console.error("Error fetching games");
+    return [];
   }
 
   // Hide NSFW games that were stored before the sync script filtered them
@@ -206,6 +225,9 @@ export function enrichGameData(game: SteamGame): GameWithMood {
     genres: game.genres,
     categories: game.categories,
     tags: game.tags,
+    min_ram_gb: game.min_ram_gb ?? null,
+    min_graphics: game.min_graphics ?? null,
+    integrated_ok: game.integrated_ok ?? null,
     year,
     summary:
       decodeEntities(game.short_description) ||

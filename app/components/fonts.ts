@@ -1,4 +1,6 @@
-import { Jersey_25, Press_Start_2P } from "next/font/google";
+import { Pixelify_Sans, Silkscreen } from "next/font/google";
 
-export const jersey = Jersey_25({ subsets: ["latin"], weight: "400" });
-export const pressStart = Press_Start_2P({ subsets: ["latin"], weight: "400" });
+// uiFont: body text, buttons and window titles. displayFont: the logo, big
+// titles and numbers (all caps, blocky).
+export const uiFont = Pixelify_Sans({ subsets: ["latin"] });
+export const displayFont = Silkscreen({ subsets: ["latin"], weight: ["400", "700"] });

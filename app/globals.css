@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --retro-black: #08070f;
+  --retro-chrome: #a9a3e3; /* window title bars and frames */
+  --retro-chrome-dark: #6f69b8;
+  --retro-panel: #3b3a44; /* grey window body */
+  --retro-indigo: #3a2bd1;
+  --retro-magenta: #d62fb8;
+  --retro-cyan: #4fe3f0;
+  --retro-green: #31e08a;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--retro-black);
+  color: #ece9ff;
+}
+
+/* Page background: neon streaks and a faint grid on black, like a glitchy
+   2000s monitor. The scanlines sit on top of everything and ignore clicks. */
+.retro-bg {
+  background-color: var(--retro-black);
+  background-image:
+    /* neon streaks */
+    linear-gradient(90deg, transparent 0 4%, rgba(214, 47, 184, 0.55) 4% 14%, transparent 14%),
+    linear-gradient(90deg, transparent 0 62%, rgba(79, 227, 240, 0.45) 62% 78%, transparent 78%),
+    linear-gradient(90deg, transparent 0 80%, rgba(49, 224, 138, 0.4) 80% 90%, transparent 90%),
+    linear-gradient(0deg, transparent 0 38%, rgba(214, 47, 184, 0.45) 38% 39%, transparent 39%),
+    linear-gradient(0deg, transparent 0 71%, rgba(79, 227, 240, 0.4) 71% 72%, transparent 72%),
+    /* grid */
+    linear-gradient(rgba(111, 105, 184, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(111, 105, 184, 0.09) 1px, transparent 1px);
+  background-size:
+    100% 2px, 100% 2px, 100% 2px,
+    2px 100%, 2px 100%,
+    28px 28px, 28px 28px;
+  background-position:
+    0 12%, 0 33%, 0 58%,
+    9% 0, 91% 0,
+    0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat, repeat;
+}
+.retro-scanlines {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.025) 0 1px,
+    transparent 1px 3px
+  );
+}
+
+/* A Windows-2000-style raised edge: light on the top and left, dark on the
+   bottom and right. .retro-inset is the opposite (a sunken field). */
+.retro-raised {
+  border: 2px solid;
+  border-color: #e9e7ff #2a2740 #2a2740 #e9e7ff;
+}
+.retro-inset {
+  border: 2px solid;
+  border-color: #1b1a24 #bdb9ee #bdb9ee #1b1a24;
+}
+
+/* Glitchy logo text: the cyan and magenta fringes are offset copies. */
+.retro-glitch {
+  text-shadow:
+    -2px 0 var(--retro-magenta),
+    2px 0 var(--retro-cyan);
+}
+
+/* Glossy buttons like the ones in the reference windows */
+.retro-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 5px;
+  border: 2px solid;
+  padding: 0.35em 1em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.retro-btn:active {
+  transform: translate(1px, 1px);
+  filter: brightness(0.92);
+}
+.retro-btn-indigo {
+  color: #fff;
+  border-color: #9b94ff #1a1370 #1a1370 #9b94ff;
+  background: linear-gradient(#5b4ef0 0%, #3a2bd1 48%, #2a1da8 52%, #3a2bd1 100%);
+}
+.retro-btn-white {
+  color: #14122b;
+  border-color: #ffffff #8c89a8 #8c89a8 #ffffff;
+  background: linear-gradient(#ffffff 0%, #ececf6 48%, #d4d3e6 52%, #ececf6 100%);
+}
+.retro-btn-magenta {
+  color: #fff;
+  border-color: #ff8be6 #7a1068 #7a1068 #ff8be6;
+  background: linear-gradient(#e847cb 0%, #d62fb8 48%, #a81f90 52%, #d62fb8 100%);
 }

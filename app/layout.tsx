@@ -15,10 +15,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="flex min-h-screen flex-col bg-amber-50 text-amber-950 dark:bg-stone-950 dark:text-amber-50 antialiased">
+      <body className="retro-bg flex min-h-screen flex-col text-[#ece9ff] antialiased">
         <Navbar />
         {children}
         <Footer />
+        <div className="retro-scanlines" aria-hidden />
       </body>
     </html>
   );
