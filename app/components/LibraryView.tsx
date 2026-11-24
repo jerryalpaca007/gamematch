@@ -13,8 +13,15 @@ import RetroButton from "./RetroButton";
 import { uiFont, displayFont } from "./fonts";
 import { CARD_W, CARD_H, scoreColor } from "./cardScale";
 
+// A row of the deck holds this many cards; the next one starts a second row
+const PER_ROW = 10;
+
 // Cards in the library are drawn at this fraction of the design size
 const DESKTOP_SCALE = 0.85;
+// The window's widest size in px, wide enough for a full row of 10 cards
+const WINDOW_MAX = 1520;
+// Width of a row of 10 cards that overlap by 58%, in card widths: 1 + 9 * 0.42
+const ROW_CARDS_WIDE = 4.78;
 
 // Your saved games as a hand of trading cards inside a window. The cards
 // overlap like a fanned deck; hover lifts one, click lifts and highlights it.
@@ -30,7 +37,15 @@ export default function LibraryView() {
   useEffect(() => {
     const fit = () => {
       const w = Math.min(window.innerWidth, document.documentElement.clientWidth);
-      setScale(Math.min(DESKTOP_SCALE, (w - 80) / 335));
+      if (w < 768) {
+        // phones: one card at a time, the deck scrolls sideways
+        setScale(Math.min(DESKTOP_SCALE, (w - 80) / 335));
+      } else {
+        // a full row of 10 overlapping cards is 4.78 cards wide; leave about
+        // 150px for the page margin, window frame and padding
+        const room = Math.min(w, WINDOW_MAX) - 150;
+        setScale(Math.min(DESKTOP_SCALE, room / (335 * ROW_CARDS_WIDE)));
+      }
     };
     fit();
     window.addEventListener("resize", fit);
@@ -71,6 +86,12 @@ export default function LibraryView() {
     setSelected(next.length ? next[next.length - 1].steam_app_id : null);
   };
 
+  // the deck in rows of PER_ROW, in the order the games were saved
+  const rows: Game[][] = [];
+  for (let i = 0; i < saved.length; i += PER_ROW) {
+    rows.push(saved.slice(i, i + PER_ROW));
+  }
+
   const current = saved.find((g) => g.steam_app_id === selected) ?? null;
 
   return (
@@ -79,7 +100,7 @@ export default function LibraryView() {
         title="Library.exe - GameMatch"
         // the ✕ goes back to the swipe page
         onClose={() => router.push("/")}
-        className="mx-auto max-w-6xl"
+        className="mx-auto max-w-[1520px]"
         bodyClassName="p-3 md:p-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -103,44 +124,48 @@ export default function LibraryView() {
           </div>
         ) : (
           <>
-            {/* The hand: cards overlap by half and scroll sideways */}
+            {/* The deck: rows of up to 10 cards that overlap by half; scrolls sideways */}
             <div
               className="retro-inset isolate mt-3 overflow-x-auto bg-[#14122b] px-4 pb-4 pt-8"
               style={{ ["--s" as string]: scale }}
             >
-              <ul className="flex w-max pr-4">
-                {saved.map((g, i) => {
-                  const isSelected = g.steam_app_id === selected;
-                  return (
-                    <li
-                      key={g.steam_app_id}
-                      className="relative shrink-0"
-                      style={{
-                        width: CARD_W,
-                        height: CARD_H,
-                        marginLeft: i === 0 ? 0 : `calc(${CARD_W} * -0.58)`,
-                        // keep the fan order, so cards to the right stay clickable
-                        zIndex: i,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setSelected(g.steam_app_id)}
-                        aria-label={`${g.title}${isSelected ? " (selected)" : ""}`}
-                        className="block h-full w-full cursor-pointer text-left transition-transform duration-150 hover:-translate-y-3"
-                        style={{
-                          transform: isSelected ? "translateY(-18px)" : undefined,
-                          filter: isSelected
-                            ? "drop-shadow(0 0 10px #4fe3f0) drop-shadow(0 0 3px #4fe3f0)"
-                            : "brightness(0.8)",
-                        }}
-                      >
-                        <CardFace game={g} />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="flex w-max flex-col gap-6 pr-4">
+                {rows.map((row, r) => (
+                  <ul key={r} className="flex">
+                    {row.map((g, i) => {
+                      const isSelected = g.steam_app_id === selected;
+                      return (
+                        <li
+                          key={g.steam_app_id}
+                          className="relative shrink-0"
+                          style={{
+                            width: CARD_W,
+                            height: CARD_H,
+                            marginLeft: i === 0 ? 0 : `calc(${CARD_W} * -0.58)`,
+                            // keep the fan order, so cards to the right stay clickable
+                            zIndex: i,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setSelected(g.steam_app_id)}
+                            aria-label={`${g.title}${isSelected ? " (selected)" : ""}`}
+                            className="block h-full w-full cursor-pointer text-left transition-transform duration-150 hover:-translate-y-3"
+                            style={{
+                              transform: isSelected ? "translateY(-18px)" : undefined,
+                              filter: isSelected
+                                ? "drop-shadow(0 0 10px #4fe3f0) drop-shadow(0 0 3px #4fe3f0)"
+                                : "brightness(0.8)",
+                            }}
+                          >
+                            <CardFace game={g} />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ))}
+              </div>
             </div>
 
             {/* Actions for the picked-up card */}

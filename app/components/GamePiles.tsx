@@ -11,6 +11,12 @@ import RetroButton from "./RetroButton";
 
 // How much smaller a card in the pile is than the card you swipe
 const MINI = 0.38;
+// The pile window is 184 design units wide (152 plus 16 on each side); inside it
+// the cards sit in one tight overlapping row, like the Library's deck
+const PILE_W = 184;
+const PILE_ROOM = 152; // width the fan of cards may use
+const MAX_SHOWN = 8; // only the newest cards are drawn
+const MAX_STEP = 10; // gap between the left edges of neighbouring cards
 
 // A small window holding a pile of the most recent cards (passed or saved), with
 // a count in its title bar. Clicking it opens the full list. x and y are design
@@ -33,7 +39,15 @@ export default function Pile({
   // when given, the maximize square shows and runs this
   onMaximize?: () => void;
 }) {
-  const shown = games.slice(-3); // the last one is on top
+  const shown = games.slice(-MAX_SHOWN); // the newest one is on top, at the right
+  // the left edges are STEP apart, shrinking so that every card fits in the window
+  const miniW = MINI * 335;
+  const step =
+    shown.length > 1
+      ? Math.min(MAX_STEP, (PILE_ROOM - miniW) / (shown.length - 1))
+      : 0;
+  const fanW = miniW + step * (shown.length - 1);
+  const fanLeft = (PILE_W - 10 / 1.4 - fanW) / 2; // centred (10px of frame is not scaled)
   const empty = games.length === 0;
 
   return (
@@ -47,7 +61,7 @@ export default function Pile({
         if (!empty && (e.key === "Enter" || e.key === " ")) onClick();
       }}
       className={`absolute z-10 ${empty ? "cursor-default" : "cursor-pointer active:translate-y-px"}`}
-      style={{ left: px(x), top: px(y), width: px(152) }}
+      style={{ left: px(x), top: px(y), width: px(PILE_W) }}
     >
       <RetroWindow
         title={`${label} (${games.length})`}
@@ -55,9 +69,9 @@ export default function Pile({
         onMaximize={onMaximize}
       >
         <div
-          className="relative"
+          className="relative overflow-hidden"
           style={{
-            height: px(MINI * 488 + 18),
+            height: px(MINI * 488 + 18 + 32),
             borderBottom: `3px solid ${accent}`,
           }}
         >
@@ -74,19 +88,16 @@ export default function Pile({
                 key={g.steam_app_id}
                 className="pointer-events-none absolute block"
                 style={{
-                  left: px(10 + i * 3),
-                  top: px(10 + i * 3),
-                  width: px(MINI * 335),
+                  left: px(fanLeft + i * step),
+                  top: px(7 + 16),
+                  width: px(miniW),
                   height: px(MINI * 488),
+                  zIndex: i,
+                  // older cards are a little dimmer, like unselected cards in the Library
+                  filter: i === shown.length - 1 ? undefined : "brightness(0.8)",
                 }}
                 initial={{ scale: 0.4, opacity: 0, y: -50 }}
-                animate={{
-                  scale: 1,
-                  opacity: 1,
-                  y: 0,
-                  // a steady tilt per game, so the pile looks hand-stacked
-                  rotate: (g.steam_app_id % 7) - 3,
-                }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
                 transition={{ type: "spring", stiffness: 380, damping: 26 }}
               >
                 {/* The real card, drawn at full size and shrunk */}
@@ -115,10 +126,13 @@ export function PileList({
   games,
   onOpen,
   onClose,
+  onMaximize,
 }: {
   title: string;
   games: Game[];
   onOpen: (game: Game) => void;
+  // when given, the maximize square shows and runs this
+  onMaximize?: () => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -152,7 +166,8 @@ export function PileList({
         <RetroWindow
           title={`${title} (${games.length})`}
           onClose={onClose}
-          maximizable={title === "SAVED"}
+          maximizable={!!onMaximize}
+          onMaximize={onMaximize}
           bodyClassName="flex max-h-[80vh] flex-col"
         >
           <ul className="flex-1 space-y-2 overflow-y-auto p-3">

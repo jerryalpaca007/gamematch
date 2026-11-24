@@ -317,7 +317,7 @@ export default function GameMatch() {
               label="SAVED"
               games={savedGames}
               accent="#4fe3f0"
-              x={layout.wide ? 477 : 91}
+              x={layout.wide ? 477 : 75}
               y={layout.wide ? 110 : layout.narrow ? 600 : 520}
               onClick={() => setPileOpen("saved")}
               onMaximize={() => router.push("/library")}
@@ -335,6 +335,7 @@ export default function GameMatch() {
                 setViewing(game);
               }}
               onClose={() => setPileOpen(null)}
+              onMaximize={() => router.push("/library")}
             />
           )}
         </AnimatePresence>
