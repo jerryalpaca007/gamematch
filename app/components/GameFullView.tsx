@@ -99,8 +99,6 @@ export default function GameFullView({
   }, [zoom, shots.length]);
 
   const badge = `${displayFont.className} retro-raised flex items-center gap-2 bg-[#a9a3e3] px-2 py-1 text-[10px] text-[#14122b]`;
-  const hasHardware =
-    game.min_ram_gb != null || !!game.min_graphics || game.integrated_ok != null;
 
   return (
     <div>
@@ -202,50 +200,38 @@ export default function GameFullView({
             )}
           </Section>
 
-          <Section title="SYSTEM REQUIREMENTS (MINIMUM)">
-            {hasHardware ? (
-              <dl
-                className={`${uiFont.className} grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-base text-[#ece9ff]`}
-              >
-                <dt className="text-[#a9a3e3]">Memory</dt>
-                <dd>{game.min_ram_gb != null ? `${game.min_ram_gb} GB RAM` : "Not listed"}</dd>
-                <dt className="text-[#a9a3e3]">Graphics</dt>
-                <dd>{game.min_graphics || "Not listed"}</dd>
-                <dt className="text-[#a9a3e3]">Integrated GPU</dt>
-                <dd>
-                  {game.integrated_ok == null
-                    ? "Unknown"
-                    : game.integrated_ok
-                      ? "Probably runs"
-                      : "Needs a dedicated card"}
-                </dd>
-              </dl>
-            ) : (
-              <p className={`${uiFont.className} text-base text-[#a9a3e3]`}>
-                System requirements have not been added to the database yet.
-              </p>
-            )}
-          </Section>
-
-          {(reqs.minimum || reqs.recommended) && (
-            <Section title="FULL SYSTEM SPECS">
+          <Section title="SPECS">
+            {reqs.minimum || reqs.recommended ? (
               <div className="grid gap-3 sm:grid-cols-2">
-                {([["Minimum", reqs.minimum], ["Recommended", reqs.recommended]] as const).map(
+                {(
+                  [
+                    ["Minimum", reqs.minimum],
+                    ["Recommended", reqs.recommended],
+                  ] as const
+                ).map(
                   ([label, text]) =>
                     text && (
                       <div key={label} className="retro-inset bg-[#14122b] p-2">
-                        <div className={`${displayFont.className} text-[9px] text-[#d62fb8]`}>
+                        <div
+                          className={`${displayFont.className} text-[9px] text-[#d62fb8]`}
+                        >
                           {label.toUpperCase()}
                         </div>
-                        <p className={`${uiFont.className} mt-1 whitespace-pre-line text-sm leading-5 text-[#ece9ff]`}>
+                        <p
+                          className={`${uiFont.className} mt-1 whitespace-pre-line text-sm leading-5 text-[#ece9ff]`}
+                        >
                           {text}
                         </p>
                       </div>
                     ),
                 )}
               </div>
-            </Section>
-          )}
+            ) : (
+              <p className={`${uiFont.className} text-base text-[#a9a3e3]`}>
+                {loading ? "Loading specs..." : "Steam lists no specs for this game."}
+              </p>
+            )}
+          </Section>
 
           {game.categories && game.categories.length > 0 && (
             <Section title="FEATURES">

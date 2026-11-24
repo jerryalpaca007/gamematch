@@ -13,6 +13,9 @@ import PixelIcon from "./PixelIcon";
 import { displayFont, uiFont } from "./fonts";
 import { scoreColor } from "./cardScale";
 
+// How many tags show before "Show all tags" is pressed
+const TAGS_COLLAPSED = 12;
+
 // The real Steam genres. Some games came back with genres in other languages,
 // so only these are offered as filters.
 const GENRES = [
@@ -99,7 +102,7 @@ function Chip({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`retro-btn ${active ? "retro-btn-indigo" : "retro-btn-white"} ${uiFont.className} !px-2 !py-0.5 text-xs`}
+      className={`retro-btn ${active ? "retro-btn-indigo" : "retro-btn-white"} ${uiFont.className} !px-1.5 !py-0 text-[11px] leading-5`}
     >
       {children}
     </button>
@@ -275,6 +278,8 @@ export default function BrowseView() {
   // the game shown full size inside the Browse window (null = the results)
   const [fullGame, setFullGame] = useState<Game | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  // the tag list shows only the most common tags until this is switched on
+  const [allTags, setAllTags] = useState(false);
 
   const [query, setQuery] = useState("");
   const [genres, setGenres] = useState<Set<string>>(new Set());
@@ -459,7 +464,14 @@ export default function BrowseView() {
 
       <SectionTitle>TAGS</SectionTitle>
       <div className="flex flex-wrap gap-1">
-        {facts.topTags.map((t) => (
+        {/* The common tags, plus any picked one that is further down the list */}
+        {(allTags
+          ? facts.topTags
+          : [
+              ...facts.topTags.slice(0, TAGS_COLLAPSED),
+              ...facts.topTags.slice(TAGS_COLLAPSED).filter((t) => tags.has(t)),
+            ]
+        ).map((t) => (
           <Chip
             key={t}
             active={tags.has(t)}
@@ -469,6 +481,18 @@ export default function BrowseView() {
           </Chip>
         ))}
       </div>
+      {facts.topTags.length > TAGS_COLLAPSED && (
+        <button
+          type="button"
+          onClick={() => setAllTags((v) => !v)}
+          aria-expanded={allTags}
+          className={`${uiFont.className} mt-2 cursor-pointer text-sm text-[#4fe3f0] hover:underline`}
+        >
+          {allTags
+            ? "▲ Show fewer tags"
+            : `▼ Show all ${facts.topTags.length} tags`}
+        </button>
+      )}
 
       <SectionTitle>SCORE AND YEAR</SectionTitle>
       <Range

@@ -108,6 +108,17 @@ export async function fetchGamesFromSupabase(): Promise<SteamGame[]> {
   );
 }
 
+// The list without repeats, keeping the first of each (ignoring upper/lower case)
+function unique(list: string[] | null | undefined): string[] {
+  const seen = new Set<string>();
+  return (list ?? []).filter((item) => {
+    const key = item.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function generateMoodScores(genres: string[], rating: number) {
   const genresLower = genres.map((g) => g.toLowerCase());
   let excitement = 2;
@@ -223,8 +234,9 @@ export function enrichGameData(game: SteamGame): GameWithMood {
     metacritic: game.metacritic,
     header_url: game.header_url,
     genres: game.genres,
-    categories: game.categories,
-    tags: game.tags,
+    // Steam sometimes lists the same feature twice (e.g. DualShock support)
+    categories: unique(game.categories),
+    tags: unique(game.tags),
     min_ram_gb: game.min_ram_gb ?? null,
     min_graphics: game.min_graphics ?? null,
     integrated_ok: game.integrated_ok ?? null,

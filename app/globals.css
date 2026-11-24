@@ -129,6 +129,21 @@ html[data-menu="open"] body {
     padding-left: 16.75rem; /* 18.25rem minus the 1.5rem the pages already have at md */
   }
 }
+/* The main (swipe) page is different: its cards and buttons are centred and
+   already sit far from the left edge on a wide screen, so it only needs as much
+   room as it takes to keep its leftmost button (the Pass button, 148px left of
+   the card) 16px away from the menu (menu right edge 268px). With the card
+   centred in what is left, that works out to 1333px minus the screen width,
+   and never less than nothing. Phones slide right by 15.75rem as before. */
+html[data-menu="open"] .page-shift:has([data-page="home"]) {
+  transform: translateX(15.75rem);
+}
+@media (min-width: 768px) {
+  html[data-menu="open"] .page-shift:has([data-page="home"]) {
+    transform: none;
+    padding-left: max(0px, calc(1333px - 100vw));
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .page-shift {
     transition: none;

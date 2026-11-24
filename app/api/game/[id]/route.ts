@@ -84,7 +84,7 @@ export async function GET(
     },
     developers: data.developers ?? [],
     publishers: data.publishers ?? [],
-    description: text.length > 1500 ? `${text.slice(0, 1500).trimEnd()}…` : text,
+    description: text,
     price: data.is_free
       ? "Free to play"
       : (data.price_overview?.final_formatted ?? null),

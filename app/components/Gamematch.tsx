@@ -21,7 +21,7 @@ import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
 import ActionButtons from "./ActionButtons";
 import GameDetails from "./GameDetails";
 import { useRouter } from "next/navigation";
-import { readSavedIds, writeSavedIds } from "@/app/lib/saved";
+import { useSavedIds, writeSavedIds } from "@/app/lib/saved";
 import Pile, { PileList } from "./GamePiles";
 import GameFullView from "./GameFullView";
 import { uiFont, displayFont } from "./fonts";
@@ -69,6 +69,8 @@ const NARROW_BELOW = 770;
 // From this screen width the saved pile sits beside the card;
 // narrower screens centre it underneath
 const WIDE_FROM = 1200;
+// The same, while the menu is open (it takes some of the width)
+const WIDE_FROM_MENU = 1317;
 
 // ---------- Main component ----------
 export default function GameMatch() {
@@ -88,10 +90,8 @@ export default function GameMatch() {
   // The game shown full size (replaces the swipe console until you go back)
   const [fullGame, setFullGame] = useState<Game | null>(null);
   const [seenIds, setSeenIds] = useState<Set<number>>(new Set());
-  const [savedGames, setSavedGames] = useState<Game[]>([]);
-  // true once saved games from earlier visits are loaded (so we never write an
-  // empty list over them)
-  const [savedReady, setSavedReady] = useState(false);
+  // saved games are read from the browser's storage, never kept as separate state
+  const savedIds = useSavedIds();
   const router = useRouter();
   // Which pile's full list is open, if any
   const [pileOpen, setPileOpen] = useState<"saved" | null>(null);
@@ -116,16 +116,28 @@ export default function GameMatch() {
         window.screen.width,
       );
       const narrow = w < NARROW_BELOW;
+      // With the menu open the page gives up some width, so the piles only fit
+      // beside the card on a wider screen (see the .page-shift rule in globals.css)
+      const menuOpen = document.documentElement.dataset.menu === "open";
       setLayout({
         narrow,
-        // room for a pile on each side of the card
-        wide: w >= WIDE_FROM,
+        // room for the saved pile beside the card
+        wide: w >= (menuOpen && w >= NARROW_BELOW ? WIDE_FROM_MENU : WIDE_FROM),
         scale: narrow ? Math.min(S, (w - 24) / 335) : S,
       });
     };
     fit();
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    // opening or closing the menu changes the room too
+    const watch = new MutationObserver(fit);
+    watch.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-menu"],
+    });
+    return () => {
+      window.removeEventListener("resize", fit);
+      watch.disconnect();
+    };
   }, []);
 
   // Effect: runs once when the component first appears (empty array = run once)
@@ -145,14 +157,6 @@ export default function GameMatch() {
             jitter: Math.random(),
           }));
           setGames(all);
-          // Bring back games saved on earlier visits, and don't offer them again
-          const byId = new Map(all.map((g) => [g.steam_app_id, g]));
-          const restored = readSavedIds()
-            .map((id) => byId.get(id))
-            .filter((g): g is Game => g !== undefined);
-          setSavedGames(restored);
-          setSeenIds(new Set(restored.map((g) => g.steam_app_id)));
-          setSavedReady(true);
         }
       } catch (error) {
         console.error("Failed to load games from Supabase:", error);
@@ -166,10 +170,13 @@ export default function GameMatch() {
     };
   }, []);
 
-  // Remember the saved games in this browser, for the Library page
-  useEffect(() => {
-    if (savedReady) writeSavedIds(savedGames.map((g) => g.steam_app_id));
-  }, [savedGames, savedReady]);
+  // The saved games, in the order they were saved (games not loaded yet are skipped)
+  const savedGames = useMemo(() => {
+    const byId = new Map(games.map((g) => [g.steam_app_id, g]));
+    return savedIds
+      .map((id) => byId.get(id))
+      .filter((g): g is Game => g !== undefined);
+  }, [games, savedIds]);
 
   // Every unseen game, best match first: drop seen games, score the rest
   // against the sliders (plus the random bonus). useMemo means the sort runs
@@ -177,7 +184,10 @@ export default function GameMatch() {
   const ranked = useMemo(
     () =>
       games
-        .filter((g) => !seenIds.has(g.steam_app_id))
+        .filter(
+          (g) =>
+            !seenIds.has(g.steam_app_id) && !savedIds.includes(g.steam_app_id),
+        )
         .sort((a, b) => {
           const scoreA =
             MOODS.reduce((sum, m) => sum + sliders[m.key] * a.mood[m.key], 0) +
@@ -187,7 +197,7 @@ export default function GameMatch() {
             (b.jitter ?? 0) * JITTER_WEIGHT;
           return scoreB - scoreA;
         }),
-    [games, seenIds, sliders],
+    [games, seenIds, savedIds, sliders],
   );
   // The 3 cards on screen
   const currentDeck = useMemo(() => ranked.slice(0, 3), [ranked]);
@@ -222,13 +232,19 @@ export default function GameMatch() {
     const game = games.find((g) => g.steam_app_id === leaving.id);
     // Create a new Set instead of changing the old one, so React sees the update
     setSeenIds((prev) => new Set(prev).add(leaving.id));
-    if (game && leaving.dir === 1) setSavedGames((prev) => [...prev, game]);
+    if (game && leaving.dir === 1) {
+      // saving is the one place the list grows, and it goes straight to storage
+      writeSavedIds([
+        ...savedIds.filter((id) => id !== game.steam_app_id),
+        game.steam_app_id,
+      ]);
+    }
     setLeaving(null);
   };
 
   const handleReset = () => {
     setSeenIds(new Set());
-    setSavedGames([]);
+    writeSavedIds([]);
   };
 
   return (
@@ -276,8 +292,9 @@ export default function GameMatch() {
                 />
               ))}
 
-              {/* Empty state: a window with the message inside */}
-              {!currentGame && (
+              {/* Empty state: a window with the message inside. Nothing is shown while
+                  the games are still loading. */}
+              {!currentGame && !loading && (
                 <RetroWindow
                   title="GameMatch.exe"
                   className="absolute inset-0 flex flex-col"
@@ -287,15 +304,11 @@ export default function GameMatch() {
                     className={`${uiFont.className} leading-tight text-[#ece9ff]`}
                     style={{ fontSize: px(20) }}
                   >
-                    {loading
-                      ? "Loading games..."
-                      : "You've seen every game in the deck!"}
+                    You&apos;ve seen every game in the deck!
                   </p>
-                  {!loading && (
-                    <RetroButton variant="magenta" onClick={handleReset}>
-                      <RotateCcw className="h-4 w-4" /> Reset
-                    </RetroButton>
-                  )}
+                  <RetroButton variant="magenta" onClick={handleReset}>
+                    <RotateCcw className="h-4 w-4" /> Reset
+                  </RetroButton>
                 </RetroWindow>
               )}
             </div>
