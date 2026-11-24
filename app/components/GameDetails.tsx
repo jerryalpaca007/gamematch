@@ -11,11 +11,13 @@ import RetroButton from "./RetroButton";
 type Props = {
   game: Game;
   onClose: () => void;
+  // when given, the window's maximize square opens the full page for this game
+  onMaximize?: () => void;
 };
 
 // The expanded view of one game: bigger image, full description, score, price
 // and a link to the Steam store page, in a retro window.
-export default function GameDetails({ game, onClose }: Props) {
+export default function GameDetails({ game, onClose, onMaximize }: Props) {
   const [description, setDescription] = useState<string | null>(null);
   const [price, setPrice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,8 @@ export default function GameDetails({ game, onClose }: Props) {
         <RetroWindow
           title={`${game.title} - GameMatch Browser`}
           onClose={onClose}
-          maximizable
+          maximizable={!!onMaximize}
+          onMaximize={onMaximize}
           bodyClassName="flex max-h-[80vh] flex-col"
         >
           <div className="overflow-y-auto p-4">

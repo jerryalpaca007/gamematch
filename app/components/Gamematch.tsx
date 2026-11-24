@@ -20,7 +20,10 @@ import { RotateCcw } from "lucide-react";
 import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
 import ActionButtons from "./ActionButtons";
 import GameDetails from "./GameDetails";
+import { useRouter } from "next/navigation";
+import { readSavedIds, writeSavedIds } from "@/app/lib/saved";
 import Pile, { PileList } from "./GamePiles";
+import GameFullView from "./GameFullView";
 import { uiFont, displayFont } from "./fonts";
 import CardFace from "./CardFace";
 import { MOODS, type MoodScores } from "./moods";
@@ -63,8 +66,8 @@ const PRELOAD_AHEAD = 6;
 // Below this screen width there is no room for buttons beside the card
 const NARROW_BELOW = 770;
 
-// From this screen width the passed and saved piles sit beside the card;
-// narrower screens put them in a row underneath
+// From this screen width the saved pile sits beside the card;
+// narrower screens centre it underneath
 const WIDE_FROM = 1200;
 
 // ---------- Main component ----------
@@ -82,11 +85,16 @@ export default function GameMatch() {
   // A Set is a fast way to ask "have I seen this game?"
   // The game shown in the expanded view, or null when it is closed
   const [viewing, setViewing] = useState<Game | null>(null);
+  // The game shown full size (replaces the swipe console until you go back)
+  const [fullGame, setFullGame] = useState<Game | null>(null);
   const [seenIds, setSeenIds] = useState<Set<number>>(new Set());
   const [savedGames, setSavedGames] = useState<Game[]>([]);
-  const [passedGames, setPassedGames] = useState<Game[]>([]);
+  // true once saved games from earlier visits are loaded (so we never write an
+  // empty list over them)
+  const [savedReady, setSavedReady] = useState(false);
+  const router = useRouter();
   // Which pile's full list is open, if any
-  const [pileOpen, setPileOpen] = useState<"passed" | "saved" | null>(null);
+  const [pileOpen, setPileOpen] = useState<"saved" | null>(null);
   // The swipe in progress: which game is flying off and which way (1 = right,
   // -1 = left). The game only counts as seen once it has finished leaving.
   const [leaving, setLeaving] = useState<{ id: number; dir: 1 | -1 } | null>(
@@ -132,12 +140,19 @@ export default function GameMatch() {
         if (cancelled) return;
         if (steamGames.length > 0) {
           // Add mood, emoji, and color fields to each raw game
-          setGames(
-            steamGames.map((g) => ({
-              ...enrichGameData(g),
-              jitter: Math.random(),
-            })),
-          );
+          const all: Game[] = steamGames.map((g) => ({
+            ...enrichGameData(g),
+            jitter: Math.random(),
+          }));
+          setGames(all);
+          // Bring back games saved on earlier visits, and don't offer them again
+          const byId = new Map(all.map((g) => [g.steam_app_id, g]));
+          const restored = readSavedIds()
+            .map((id) => byId.get(id))
+            .filter((g): g is Game => g !== undefined);
+          setSavedGames(restored);
+          setSeenIds(new Set(restored.map((g) => g.steam_app_id)));
+          setSavedReady(true);
         }
       } catch (error) {
         console.error("Failed to load games from Supabase:", error);
@@ -150,6 +165,11 @@ export default function GameMatch() {
       cancelled = true;
     };
   }, []);
+
+  // Remember the saved games in this browser, for the Library page
+  useEffect(() => {
+    if (savedReady) writeSavedIds(savedGames.map((g) => g.steam_app_id));
+  }, [savedGames, savedReady]);
 
   // Every unseen game, best match first: drop seen games, score the rest
   // against the sliders (plus the random bonus). useMemo means the sort runs
@@ -203,132 +223,152 @@ export default function GameMatch() {
     // Create a new Set instead of changing the old one, so React sees the update
     setSeenIds((prev) => new Set(prev).add(leaving.id));
     if (game && leaving.dir === 1) setSavedGames((prev) => [...prev, game]);
-    if (game && leaving.dir === -1) setPassedGames((prev) => [...prev, game]);
     setLeaving(null);
   };
 
   const handleReset = () => {
     setSeenIds(new Set());
     setSavedGames([]);
-    setPassedGames([]);
   };
 
   return (
-    <div
-      className="mx-auto max-w-md px-4 py-8 font-serif text-amber-950 dark:text-amber-50"
-      style={{ "--s": layout.scale } as CSSProperties}
-    >
-      {/* Console: sized from cardScale.ts. The pixel buttons are positioned
+    <>
+      {/* Hidden, not removed, while a game is full size: the deck stays exactly as
+        you left it */}
+      <div
+        className={`mx-auto max-w-md px-4 py-8 font-serif text-amber-950 dark:text-amber-50 ${fullGame ? "hidden" : ""}`}
+        style={{ "--s": layout.scale } as CSSProperties}
+      >
+        {/* Console: sized from cardScale.ts. The pixel buttons are positioned
           from this box's top-left corner, so they must live inside it. The
           deck is drawn back to front, top card on top. flex + shrink-0 keeps
           it centered even though it is wider than the column. */}
-      <div className="flex justify-center">
-        <div
-          className="relative shrink-0"
-          style={{
-            width: CARD_W,
-            // room under the card for the phone button row and/or the piles
-            height: layout.wide
-              ? CARD_H
-              : layout.narrow
-                ? `calc(${CARD_H} + ${px(350)})`
-                : `calc(${CARD_H} + ${px(270)})`,
-          }}
-        >
+        <div className="flex justify-center">
           <div
-            className="absolute left-0 top-0"
-            style={{ width: CARD_W, height: CARD_H }}
+            className="relative shrink-0"
+            style={{
+              width: CARD_W,
+              // room under the card for the phone button row and/or the piles
+              height: layout.wide
+                ? CARD_H
+                : layout.narrow
+                  ? `calc(${CARD_H} + ${px(350)})`
+                  : `calc(${CARD_H} + ${px(270)})`,
+            }}
           >
-            {/* The deck, drawn back to front. Every card shows its contents, so
+            <div
+              className="absolute left-0 top-0"
+              style={{ width: CARD_W, height: CARD_H }}
+            >
+              {/* The deck, drawn back to front. Every card shows its contents, so
                 the next game is visible behind the one being swiped. */}
-            {currentDeck.map((game, index) => (
-              <SwipeCard
-                key={game.steam_app_id}
-                game={game}
-                index={index}
-                totalCards={currentDeck.length}
-                leaving={leaving?.id === game.steam_app_id ? leaving.dir : null}
-                onRequestSwipe={requestSwipe}
-                onCommit={commitSwipe}
-              />
-            ))}
+              {currentDeck.map((game, index) => (
+                <SwipeCard
+                  key={game.steam_app_id}
+                  game={game}
+                  index={index}
+                  totalCards={currentDeck.length}
+                  leaving={
+                    leaving?.id === game.steam_app_id ? leaving.dir : null
+                  }
+                  onRequestSwipe={requestSwipe}
+                  onCommit={commitSwipe}
+                />
+              ))}
 
-            {/* Empty state: a window with the message inside */}
-            {!currentGame && (
-              <RetroWindow
-                title="GameMatch.exe"
-                className="absolute inset-0 flex flex-col"
-                bodyClassName="flex flex-1 flex-col items-center justify-center gap-6 p-4 text-center"
-              >
-                <p
-                  className={`${uiFont.className} leading-tight text-[#ece9ff]`}
-                  style={{ fontSize: px(20) }}
+              {/* Empty state: a window with the message inside */}
+              {!currentGame && (
+                <RetroWindow
+                  title="GameMatch.exe"
+                  className="absolute inset-0 flex flex-col"
+                  bodyClassName="flex flex-1 flex-col items-center justify-center gap-6 p-4 text-center"
                 >
-                  {loading
-                    ? "Loading games..."
-                    : "You've seen every game in the deck!"}
-                </p>
-                {!loading && (
-                  <RetroButton variant="magenta" onClick={handleReset}>
-                    <RotateCcw className="h-4 w-4" /> Reset
-                  </RetroButton>
-                )}
-              </RetroWindow>
-            )}
-          </div>
+                  <p
+                    className={`${uiFont.className} leading-tight text-[#ece9ff]`}
+                    style={{ fontSize: px(20) }}
+                  >
+                    {loading
+                      ? "Loading games..."
+                      : "You've seen every game in the deck!"}
+                  </p>
+                  {!loading && (
+                    <RetroButton variant="magenta" onClick={handleReset}>
+                      <RotateCcw className="h-4 w-4" /> Reset
+                    </RetroButton>
+                  )}
+                </RetroWindow>
+              )}
+            </div>
 
-          {/* Pixel buttons: green = pass, orange = save, the rest are decorative */}
-          {currentGame && (
-            <ActionButtons
-              narrow={layout.narrow}
-              onPass={() => requestSwipe(false)}
-              onLike={() => requestSwipe(true)}
-              onView={() => currentGame && setViewing(currentGame)}
+            {/* Pixel buttons: green = pass, orange = save, the rest are decorative */}
+            {currentGame && (
+              <ActionButtons
+                narrow={layout.narrow}
+                onPass={() => requestSwipe(false)}
+                onLike={() => requestSwipe(true)}
+                onView={() => currentGame && setViewing(currentGame)}
+              />
+            )}
+
+            {/* The saved pile. Wide screens: beside the card. Otherwise: centred
+              under the card (and under the button row on phones). x and y are
+              design units from the card's top-left corner. */}
+            <Pile
+              label="SAVED"
+              games={savedGames}
+              accent="#4fe3f0"
+              x={layout.wide ? 477 : 91}
+              y={layout.wide ? 110 : layout.narrow ? 600 : 520}
+              onClick={() => setPileOpen("saved")}
+              onMaximize={() => router.push("/library")}
+            />
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {pileOpen && (
+            <PileList
+              title="SAVED"
+              games={savedGames}
+              onOpen={(game) => {
+                setPileOpen(null);
+                setViewing(game);
+              }}
+              onClose={() => setPileOpen(null)}
             />
           )}
+        </AnimatePresence>
 
-          {/* The passed and saved piles. Wide screens: one on each side of the
-              card. Otherwise: side by side under the card (and under the button
-              row on phones). x and y are design units from the card's corner. */}
-          <Pile
-            label="PASSED"
-            games={passedGames}
-            accent="#d62fb8"
-            x={layout.wide ? -274 : 0}
-            y={layout.wide ? 110 : layout.narrow ? 600 : 520}
-            onClick={() => setPileOpen("passed")}
-          />
-          <Pile
-            label="SAVED"
-            games={savedGames}
-            accent="#4fe3f0"
-            x={layout.wide ? 477 : 183}
-            y={layout.wide ? 110 : layout.narrow ? 600 : 520}
-            onClick={() => setPileOpen("saved")}
-          />
-        </div>
+        <AnimatePresence>
+          {viewing && (
+            <GameDetails
+              game={viewing}
+              onClose={() => setViewing(null)}
+              onMaximize={() => {
+                setFullGame(viewing);
+                setViewing(null);
+              }}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
-      <AnimatePresence>
-        {pileOpen && (
-          <PileList
-            title={pileOpen === "passed" ? "PASSED" : "SAVED"}
-            games={pileOpen === "passed" ? passedGames : savedGames}
-            onOpen={(game) => {
-              setPileOpen(null);
-              setViewing(game);
-            }}
-            onClose={() => setPileOpen(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {viewing && (
-          <GameDetails game={viewing} onClose={() => setViewing(null)} />
-        )}
-      </AnimatePresence>
-    </div>
+      {fullGame && (
+        <div className="px-3 md:px-6">
+          <RetroWindow
+            title={`${fullGame.title} - GameMatch`}
+            className="mx-auto max-w-6xl"
+            bodyClassName="p-3 md:p-4"
+          >
+            <GameFullView
+              game={fullGame}
+              backLabel="Back to GameMatch"
+              onBack={() => setFullGame(null)}
+            />
+          </RetroWindow>
+        </div>
+      )}
+    </>
   );
 }
 

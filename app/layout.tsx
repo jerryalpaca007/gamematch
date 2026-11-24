@@ -17,7 +17,8 @@ export default function RootLayout({
     <html lang="en">
       <body className="retro-bg flex min-h-screen flex-col text-[#ece9ff] antialiased">
         <Navbar />
-        {children}
+        {/* The page makes room for the menu when it opens; the footer stays */}
+        <div className="page-shift flex flex-1 flex-col">{children}</div>
         <Footer />
         <div className="retro-scanlines" aria-hidden />
       </body>

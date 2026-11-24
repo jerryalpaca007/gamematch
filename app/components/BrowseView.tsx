@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
 import type { Game } from "./Gamematch";
 import GameDetails from "./GameDetails";
+import GameFullView from "./GameFullView";
 import RetroWindow from "./RetroWindow";
 import RetroButton from "./RetroButton";
 import PixelIcon from "./PixelIcon";
@@ -229,7 +231,7 @@ function Tile({ game, onOpen }: { game: Game; onOpen: () => void }) {
       <div className="mt-1.5 flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5">
           <span
-            className={`${displayFont.className} flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-[#14122b] px-1 text-[10px] font-bold text-[#14122b]`}
+            className={`${uiFont.className} flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-[#14122b] px-1 text-[13px] font-bold text-[#14122b]`}
             style={{
               backgroundColor:
                 game.metacritic != null
@@ -241,7 +243,7 @@ function Tile({ game, onOpen }: { game: Game; onOpen: () => void }) {
           </span>
           {game.min_ram_gb != null && (
             <span
-              className={`${displayFont.className} text-[9px] text-[#14122b]`}
+              className={`${uiFont.className} text-[12px] text-[#14122b]`}
             >
               {game.min_ram_gb}GB
             </span>
@@ -266,9 +268,12 @@ function Tile({ game, onOpen }: { game: Game; onOpen: () => void }) {
 // ---------- the page ----------
 
 export default function BrowseView() {
+  const router = useRouter();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewing, setViewing] = useState<Game | null>(null);
+  // the game shown full size inside the Browse window (null = the results)
+  const [fullGame, setFullGame] = useState<Game | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
   const [query, setQuery] = useState("");
@@ -526,10 +531,16 @@ export default function BrowseView() {
   return (
     <>
       <RetroWindow
-        title="Browse.exe - GameMatch"
+        title={fullGame ? `${fullGame.title} - Browse.exe` : "Browse.exe - GameMatch"}
+        // the ✕ goes back to the swipe page
+        onClose={() => router.push("/")}
         className="mx-auto max-w-6xl"
         bodyClassName="p-3 md:p-4"
       >
+        {fullGame ? (
+          <GameFullView game={fullGame} onBack={() => setFullGame(null)} />
+        ) : (
+          <>
         {/* Search: a sunken field with a glossy GO button */}
         <form
           onSubmit={(e) => {
@@ -631,11 +642,20 @@ export default function BrowseView() {
             )}
           </section>
         </div>
+          </>
+        )}
       </RetroWindow>
 
       <AnimatePresence>
         {viewing && (
-          <GameDetails game={viewing} onClose={() => setViewing(null)} />
+          <GameDetails
+            game={viewing}
+            onClose={() => setViewing(null)}
+            onMaximize={() => {
+              setFullGame(viewing);
+              setViewing(null);
+            }}
+          />
         )}
       </AnimatePresence>
     </>

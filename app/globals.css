@@ -105,3 +105,32 @@ body {
   border-color: #ff8be6 #7a1068 #7a1068 #ff8be6;
   background: linear-gradient(#e847cb 0%, #d62fb8 48%, #a81f90 52%, #d62fb8 100%);
 }
+
+/* Room for the menu window: it sits 0.75rem from the left edge and is 14rem wide
+   (16rem from md up), and the page keeps a 24px (1.5rem) gap after it.
+   Phones: the page slides right. md and up: the page gets left padding, so its
+   windows shrink to fit and nothing is pushed off the right side. The footer
+   is outside .page-shift and never moves. */
+.page-shift {
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    padding-left 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+html[data-menu="open"] .page-shift {
+  transform: translateX(16.25rem);
+}
+html[data-menu="open"],
+html[data-menu="open"] body {
+  overflow-x: clip;
+}
+@media (min-width: 768px) {
+  html[data-menu="open"] .page-shift {
+    transform: none;
+    padding-left: 16.75rem; /* 18.25rem minus the 1.5rem the pages already have at md */
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-shift {
+    transition: none;
+  }
+}

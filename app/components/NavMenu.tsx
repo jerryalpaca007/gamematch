@@ -18,6 +18,16 @@ const links = [
 export default function NavMenu() {
   const [open, setOpen] = useState(false);
 
+  // While the menu is open, tell the page (see .page-shift in globals.css) so it
+  // can slide to the right and make room instead of staying underneath
+  useEffect(() => {
+    if (!open) return;
+    document.documentElement.dataset.menu = "open";
+    return () => {
+      delete document.documentElement.dataset.menu;
+    };
+  }, [open]);
+
   // Escape closes the menu
   useEffect(() => {
     if (!open) return;

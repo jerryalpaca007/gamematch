@@ -1,13 +1,9 @@
 import { displayFont, uiFont } from "./fonts";
 import { px, scoreColor } from "./cardScale";
 import { MOODS } from "./moods";
+import { cardTier } from "./moodTier";
 import type { Game } from "./Gamematch";
 
-// Silver used for the card frame and the title / rule bars
-const SILVER =
-  "linear-gradient(135deg,#f1f0f8 0%,#a4a3b8 32%,#e2e1ee 50%,#8f8ea6 72%,#cfcee0 100%)";
-// Translucent lavender behind text, so the artwork still shows through
-const PANEL = "rgba(236,233,255,0.88)";
 const INK = "#14122b";
 
 // The look of one game card, modelled on a trading card: silver frame, a title
@@ -34,8 +30,10 @@ export default function CardFace({
     3,
   );
 
+  // the whole card takes the metal of its total mood score
+  const tier = cardTier(game.mood);
   const box = {
-    background: PANEL,
+    background: tier.panel,
     border: `2px solid ${INK}`,
     borderRadius: px(6),
   } as const;
@@ -46,7 +44,7 @@ export default function CardFace({
       style={{
         borderRadius: px(16),
         padding: px(9),
-        background: SILVER,
+        background: tier.frame,
         boxShadow: `0 0 0 2px ${INK}, 0 0 18px rgba(214,47,184,0.35)`,
       }}
     >
@@ -81,6 +79,7 @@ export default function CardFace({
               "linear-gradient(rgba(8,7,15,0.1), rgba(8,7,15,0.55) 60%, rgba(8,7,15,0.7))",
           }}
         />
+        <div className="absolute inset-0" style={{ background: tier.tint }} />
 
         <div
           className="relative flex h-full flex-col"
@@ -90,7 +89,7 @@ export default function CardFace({
           <div
             className="flex shrink-0 items-center"
             style={{
-              background: SILVER,
+              background: tier.bar,
               border: `2px solid ${INK}`,
               borderRadius: px(8),
               height: px(36),
@@ -136,7 +135,7 @@ export default function CardFace({
               SCORE
             </span>
             <span
-              className={`${displayFont.className} flex shrink-0 items-center justify-center font-bold`}
+              className={`${uiFont.className} flex shrink-0 items-center justify-center font-bold`}
               style={{
                 width: px(
                   game.metacritic != null && game.metacritic >= 100 ? 30 : 26,
@@ -243,7 +242,11 @@ export default function CardFace({
               <div
                 key={m.key}
                 className="flex items-center"
-                style={{ ...box, padding: `${px(3)} ${px(6)}`, gap: px(6) }}
+                style={{
+                  ...box,
+                  padding: `${px(3)} ${px(6)}`,
+                  gap: px(6),
+                }}
               >
                 <span className="flex shrink-0" style={{ gap: px(2) }}>
                   {[1, 2, 3, 4, 5].map((n) => (
@@ -280,8 +283,8 @@ export default function CardFace({
 
           {/* Stats row, where a card shows weakness and retreat */}
           <div
-            className={`${displayFont.className} flex shrink-0 justify-between text-white`}
-            style={{ fontSize: px(7) }}
+            className={`${uiFont.className} flex shrink-0 justify-between text-white`}
+            style={{ fontSize: px(9) }}
           >
             <span>YEAR {game.year}</span>
             <span>GENRES {genres.length}</span>
@@ -300,7 +303,7 @@ export default function CardFace({
           <div
             className={`${uiFont.className} flex shrink-0 items-center justify-center text-center`}
             style={{
-              background: SILVER,
+              background: tier.bar,
               border: `2px solid ${INK}`,
               borderRadius: px(12),
               minHeight: px(26),
@@ -316,8 +319,8 @@ export default function CardFace({
 
           {/* Tiny footer line */}
           <div
-            className={`${displayFont.className} flex shrink-0 justify-between text-white/70`}
-            style={{ fontSize: px(6) }}
+            className={`${uiFont.className} flex shrink-0 justify-between text-white/70`}
+            style={{ fontSize: px(8) }}
           >
             <span>STEAM #{game.steam_app_id}</span>
             <span>GAMEMATCH ★</span>

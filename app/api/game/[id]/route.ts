@@ -47,6 +47,10 @@ export async function GET(
         short_description?: string;
         is_free?: boolean;
         price_overview?: { final_formatted?: string };
+        screenshots?: { path_thumbnail?: string; path_full?: string }[];
+        pc_requirements?: { minimum?: string; recommended?: string } | [];
+        developers?: string[];
+        publishers?: string[];
       };
     }
   >;
@@ -62,7 +66,24 @@ export async function GET(
       "",
   );
 
+  // Steam sends [] instead of an object when a game lists no requirements
+  const req = Array.isArray(data.pc_requirements) ? {} : (data.pc_requirements ?? {});
+  const reqText = (html?: string) =>
+    html
+      ? htmlToText(html.replace(/<\/?strong>/gi, "")).replace(/^(minimum|recommended):\s*/i, "")
+      : null;
+
   return Response.json({
+    screenshots: (data.screenshots ?? [])
+      .slice(0, 8)
+      .map((s) => ({ thumb: s.path_thumbnail, full: s.path_full }))
+      .filter((s) => s.thumb && s.full),
+    requirements: {
+      minimum: reqText(req.minimum),
+      recommended: reqText(req.recommended),
+    },
+    developers: data.developers ?? [],
+    publishers: data.publishers ?? [],
     description: text.length > 1500 ? `${text.slice(0, 1500).trimEnd()}…` : text,
     price: data.is_free
       ? "Free to play"

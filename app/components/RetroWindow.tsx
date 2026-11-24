@@ -33,7 +33,11 @@ function MaximizeSquare({ onMaximize }: { onMaximize?: () => void }) {
     <button
       type="button"
       aria-label="Maximize"
-      onClick={onMaximize}
+      onClick={(e) => {
+        // don't also trigger a click on whatever the window sits inside
+        e.stopPropagation();
+        onMaximize();
+      }}
       className={`${square} cursor-pointer active:translate-x-px active:translate-y-px`}
     >
       {icon}

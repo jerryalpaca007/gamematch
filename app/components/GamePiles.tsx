@@ -22,6 +22,7 @@ export default function Pile({
   x,
   y,
   onClick,
+  onMaximize,
 }: {
   label: string;
   games: Game[];
@@ -29,6 +30,8 @@ export default function Pile({
   x: number;
   y: number;
   onClick: () => void;
+  // when given, the maximize square shows and runs this
+  onMaximize?: () => void;
 }) {
   const shown = games.slice(-3); // the last one is on top
   const empty = games.length === 0;
@@ -48,7 +51,8 @@ export default function Pile({
     >
       <RetroWindow
         title={`${label} (${games.length})`}
-        maximizable={label === "SAVED"}
+        maximizable={!!onMaximize}
+        onMaximize={onMaximize}
       >
         <div
           className="relative"
@@ -179,7 +183,7 @@ export function PileList({
                   </span>
                   {g.metacritic != null && (
                     <span
-                      className={`${displayFont.className} shrink-0 rounded-full border-2 border-[#14122b] px-2 py-1 text-[10px] font-bold text-[#14122b]`}
+                      className={`${uiFont.className} shrink-0 rounded-full border-2 border-[#14122b] px-2 py-1 text-[13px] font-bold text-[#14122b]`}
                       style={{ backgroundColor: scoreColor(g.metacritic) }}
                     >
                       {g.metacritic}
