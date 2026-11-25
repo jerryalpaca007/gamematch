@@ -51,7 +51,7 @@ type SortKey = "score" | "year" | "name" | "ram";
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h3
-      className={`${displayFont.className} mb-2 mt-5 border-b-2 border-[#d62fb8] pb-1 text-[11px] text-[#4fe3f0] first:mt-0`}
+      className={`${displayFont.className} mb-2 mt-5 border-b-2 border-[#d62fb8] pb-1 text-lg text-[#4fe3f0] first:mt-0`}
     >
       {children}
     </h3>
@@ -245,9 +245,7 @@ function Tile({ game, onOpen }: { game: Game; onOpen: () => void }) {
             {game.metacritic ?? "--"}
           </span>
           {game.min_ram_gb != null && (
-            <span
-              className={`${uiFont.className} text-[12px] text-[#14122b]`}
-            >
+            <span className={`${uiFont.className} text-[12px] text-[#14122b]`}>
               {game.min_ram_gb}GB
             </span>
           )}
@@ -555,7 +553,9 @@ export default function BrowseView() {
   return (
     <>
       <RetroWindow
-        title={fullGame ? `${fullGame.title} - Browse.exe` : "Browse.exe - GameMatch"}
+        title={
+          fullGame ? `${fullGame.title} - Browse.exe` : "Browse.exe - GameMatch"
+        }
         // the ✕ goes back to the swipe page
         onClose={() => router.push("/")}
         className="mx-auto max-w-6xl"
@@ -565,107 +565,113 @@ export default function BrowseView() {
           <GameFullView game={fullGame} onBack={() => setFullGame(null)} />
         ) : (
           <>
-        {/* Search: a sunken field with a glossy GO button */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setVisible(PAGE);
-          }}
-          className="mx-auto flex max-w-2xl items-center gap-2"
-        >
-          <div className="retro-inset flex flex-1 items-center bg-black px-2">
-            <span className={`${displayFont.className} text-xs text-[#d62fb8]`}>
-              &gt;
-            </span>
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search games..."
-              aria-label="Search games"
-              className={`${uiFont.className} w-full bg-transparent px-2 py-2 text-lg text-[#4fe3f0] placeholder:text-[#6f69b8] focus:outline-none`}
-            />
-          </div>
-          <RetroButton variant="indigo" className="!px-5 !py-2.5">
-            Go
-          </RetroButton>
-        </form>
-
-        <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start">
-          {/* Filters: always on screen on desktop, behind a button on phones */}
-          <aside className="md:w-64 md:shrink-0">
-            <div className="mb-2 md:hidden">
-              <RetroButton
-                variant="white"
-                onClick={() => setShowFilters((v) => !v)}
-                className="w-full"
-              >
-                {showFilters ? "Hide filters" : "Show filters"}
-              </RetroButton>
-            </div>
-            <div className={showFilters ? "block" : "hidden md:block"}>
-              {sidebar}
-            </div>
-          </aside>
-
-          <section className="min-w-0 flex-1">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <span className={`${uiFont.className} text-base text-[#ece9ff]`}>
-                {loading
-                  ? "Loading games..."
-                  : `${results.length.toLocaleString()} games`}
-              </span>
-              <label
-                className={`${uiFont.className} flex items-center gap-2 text-sm text-[#ece9ff]`}
-              >
-                Sort by
-                <select
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as SortKey)}
-                  className="retro-inset bg-[#14122b] px-2 py-1 text-[#4fe3f0]"
-                >
-                  <option value="score">Score</option>
-                  <option value="year">Newest</option>
-                  <option value="name">Name</option>
-                  {facts.hasHardware && <option value="ram">Lowest RAM</option>}
-                </select>
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 min-[460px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {results.slice(0, visible).map((g) => (
-                <Tile
-                  key={g.steam_app_id}
-                  game={g}
-                  onOpen={() => setViewing(g)}
-                />
-              ))}
-            </div>
-
-            {!loading && results.length === 0 && (
-              <p
-                className={`${uiFont.className} mt-6 text-center text-lg text-[#a9a3e3]`}
-              >
-                No games match. Try removing a filter.
-              </p>
-            )}
-
-            {visible < results.length && (
-              <div className="mt-5 flex flex-col items-center gap-1">
-                <RetroButton
-                  variant="indigo"
-                  onClick={() => setVisible((v) => v + PAGE)}
-                >
-                  Load more
-                </RetroButton>
-                <span className={`${uiFont.className} text-sm text-[#a9a3e3]`}>
-                  Showing {Math.min(visible, results.length)} of{" "}
-                  {results.length.toLocaleString()}
+            {/* Search: a sunken field with a glossy GO button */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setVisible(PAGE);
+              }}
+              className="mx-auto flex max-w-2xl items-center gap-2"
+            >
+              <div className="retro-inset flex flex-1 items-center bg-black px-2">
+                <span className={`${uiFont.className} text-xs text-[#d62fb8]`}>
+                  &gt;
                 </span>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search games..."
+                  aria-label="Search games"
+                  className={`${uiFont.className} w-full bg-transparent px-2 py-2 text-lg text-[#4fe3f0] placeholder:text-[#6f69b8] focus:outline-none`}
+                />
               </div>
-            )}
-          </section>
-        </div>
+              <RetroButton variant="indigo" className="!px-5 !py-2.5">
+                Go
+              </RetroButton>
+            </form>
+
+            <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start">
+              {/* Filters: always on screen on desktop, behind a button on phones */}
+              <aside className="md:w-64 md:shrink-0">
+                <div className="mb-2 md:hidden">
+                  <RetroButton
+                    variant="white"
+                    onClick={() => setShowFilters((v) => !v)}
+                    className="w-full"
+                  >
+                    {showFilters ? "Hide filters" : "Show filters"}
+                  </RetroButton>
+                </div>
+                <div className={showFilters ? "block" : "hidden md:block"}>
+                  {sidebar}
+                </div>
+              </aside>
+
+              <section className="min-w-0 flex-1">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <span
+                    className={`${uiFont.className} text-base text-[#ece9ff]`}
+                  >
+                    {loading
+                      ? "Loading games..."
+                      : `${results.length.toLocaleString()} games`}
+                  </span>
+                  <label
+                    className={`${uiFont.className} flex items-center gap-2 text-sm text-[#ece9ff]`}
+                  >
+                    Sort by
+                    <select
+                      value={sort}
+                      onChange={(e) => setSort(e.target.value as SortKey)}
+                      className="retro-inset bg-[#14122b] px-2 py-1 text-[#4fe3f0]"
+                    >
+                      <option value="score">Score</option>
+                      <option value="year">Newest</option>
+                      <option value="name">Name</option>
+                      {facts.hasHardware && (
+                        <option value="ram">Lowest RAM</option>
+                      )}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 min-[460px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {results.slice(0, visible).map((g) => (
+                    <Tile
+                      key={g.steam_app_id}
+                      game={g}
+                      onOpen={() => setViewing(g)}
+                    />
+                  ))}
+                </div>
+
+                {!loading && results.length === 0 && (
+                  <p
+                    className={`${uiFont.className} mt-6 text-center text-lg text-[#a9a3e3]`}
+                  >
+                    No games match. Try removing a filter.
+                  </p>
+                )}
+
+                {visible < results.length && (
+                  <div className="mt-5 flex flex-col items-center gap-1">
+                    <RetroButton
+                      variant="indigo"
+                      onClick={() => setVisible((v) => v + PAGE)}
+                    >
+                      Load more
+                    </RetroButton>
+                    <span
+                      className={`${uiFont.className} text-sm text-[#a9a3e3]`}
+                    >
+                      Showing {Math.min(visible, results.length)} of{" "}
+                      {results.length.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </section>
+            </div>
           </>
         )}
       </RetroWindow>

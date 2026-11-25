@@ -2,26 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
 import { readSavedIds, writeSavedIds } from "@/app/lib/saved";
 import type { Game } from "./Gamematch";
 import CardFace from "./CardFace";
 import GameDetails from "./GameDetails";
+import GameFullView from "./GameFullView";
 import RetroWindow from "./RetroWindow";
 import RetroButton from "./RetroButton";
 import { uiFont, displayFont } from "./fonts";
 import { CARD_W, CARD_H, scoreColor } from "./cardScale";
 
 // A row of the deck holds this many cards; the next one starts a second row
-const PER_ROW = 10;
+const PER_ROW = 7;
 
 // Cards in the library are drawn at this fraction of the design size
 const DESKTOP_SCALE = 0.85;
-// The window's widest size in px, wide enough for a full row of 10 cards
-const WINDOW_MAX = 1520;
-// Width of a row of 10 cards that overlap by 58%, in card widths: 1 + 9 * 0.42
-const ROW_CARDS_WIDE = 4.78;
+// The selected-card window sits at the left edge of the screen from the lg
+// breakpoint (1024px) up: 256px wide, or 320px from 2xl (1536px). It is pulled
+// 12px into the page margin, so it takes (its width + 4px of gap) from the page
+// area. The deck window stays centred, so the same room is kept on the right.
+const panelRoom = (screen: number) => (screen >= 1536 ? 320 : 256) + 4;
+// Width of a row of 7 cards that overlap by 58%, in card widths: 1 + 6 * 0.42
+const ROW_CARDS_WIDE = 3.52;
+// Window frame, body padding and the deck's own padding around the cards, in px
+const CHROME = 100;
 
 // Your saved games as a hand of trading cards inside a window. The cards
 // overlap like a fanned deck; hover lifts one, click lifts and highlights it.
@@ -31,26 +37,48 @@ export default function LibraryView() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
   const [viewing, setViewing] = useState<Game | null>(null);
+  // The game shown full size (replaces the deck until you go back)
+  const [fullGame, setFullGame] = useState<Game | null>(null);
   const [scale, setScale] = useState(DESKTOP_SCALE);
+  // The deck window's width on tablets and desktops (null on phones, where it
+  // fills the screen). It depends only on the screen, never on how many cards
+  // there are or whether the selected-card window is open, so nothing jumps.
+  const [windowW, setWindowW] = useState<number | null>(null);
+
+  // The page area the library lives in; its real width decides the card size
+  const [area, setArea] = useState<HTMLDivElement | null>(null);
 
   // Shrink the cards on phones so one fits the window
   useEffect(() => {
+    if (!area) return;
     const fit = () => {
-      const w = Math.min(window.innerWidth, document.documentElement.clientWidth);
+      const w = Math.min(
+        window.innerWidth,
+        document.documentElement.clientWidth,
+      );
       if (w < 768) {
         // phones: one card at a time, the deck scrolls sideways
         setScale(Math.min(DESKTOP_SCALE, (w - 80) / 335));
+        setWindowW(null);
       } else {
-        // a full row of 10 overlapping cards is 4.78 cards wide; leave about
-        // 150px for the page margin, window frame and padding
-        const room = Math.min(w, WINDOW_MAX) - 150;
-        setScale(Math.min(DESKTOP_SCALE, room / (335 * ROW_CARDS_WIDE)));
+        // a row of 7 overlapping cards is 3.52 cards wide; keep the side margins
+        // free for the selected-card window when it sits beside the deck
+        const room =
+          area.clientWidth - (w >= 1024 ? 2 * panelRoom(w) : 0) - CHROME;
+        const s = Math.min(DESKTOP_SCALE, room / (335 * ROW_CARDS_WIDE));
+        setScale(s);
+        setWindowW(Math.round(335 * s * ROW_CARDS_WIDE + CHROME));
       }
     };
-    fit();
+    // fires on window resizes, zooming and any other change of the real width
+    const watch = new ResizeObserver(fit);
+    watch.observe(area);
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, []);
+    return () => {
+      watch.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  }, [area]);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,17 +122,110 @@ export default function LibraryView() {
 
   const current = saved.find((g) => g.steam_app_id === selected) ?? null;
 
+  const genres = current
+    ? (Array.isArray(current.genres) ? current.genres : [current.genres]).join(
+        " • ",
+      )
+    : "";
+
+  // A game opened full size takes over the page, like on Browse and the main page
+  if (fullGame) {
+    return (
+      <div className="mx-auto max-w-6xl">
+        <RetroWindow
+          title={`${fullGame.title} - Library.exe`}
+          onClose={() => router.push("/")}
+          bodyClassName="p-3 md:p-4"
+        >
+          <GameFullView
+            game={fullGame}
+            backLabel="Back to Library"
+            onBack={() => setFullGame(null)}
+          />
+        </RetroWindow>
+      </div>
+    );
+  }
+
   return (
-    <>
+    <div
+      ref={setArea}
+      className="relative flex w-full flex-col items-center gap-4"
+    >
+      {/* The window for the picked card: on the left of the deck, or above it on
+          smaller screens. Its ✕ puts the card down again. */}
+      <AnimatePresence mode="wait">
+        {current && (
+          <motion.aside
+            key={current.steam_app_id}
+            aria-label="Selected game"
+            className="w-full lg:absolute lg:-left-3 lg:top-0 lg:w-64 2xl:w-80"
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={{ duration: 0.15 }}
+          >
+            <RetroWindow
+              title="Card.exe"
+              onClose={() => setSelected(null)}
+              bodyClassName="flex flex-col gap-4 p-4"
+            >
+              {current.header_url && (
+                <div className="retro-inset bg-black p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={current.header_url} alt="" className="w-full" />
+                </div>
+              )}
+              <h2
+                className={`${displayFont.className} retro-glitch text-2xl font-bold leading-8 text-white`}
+              >
+                {current.title}
+              </h2>
+              <p className={`${uiFont.className} text-xl text-[#a9a3e3]`}>
+                {genres} • {current.year}
+              </p>
+              {current.metacritic != null && (
+                <div
+                  className={`${uiFont.className} flex items-center gap-2 text-base text-[#ece9ff]`}
+                >
+                  METACRITIC
+                  <span
+                    className="border-2 border-[#14122b] px-1.5 py-0.5 text-[#14122b]"
+                    style={{ backgroundColor: scoreColor(current.metacritic) }}
+                  >
+                    {current.metacritic}
+                  </span>
+                </div>
+              )}
+              <RetroButton
+                variant="indigo"
+                onClick={() => setViewing(current)}
+                className="w-full !py-3 !text-lg"
+              >
+                View game
+              </RetroButton>
+              <RetroButton
+                variant="magenta"
+                onClick={() => remove(current.steam_app_id)}
+                className="w-full !py-3 !text-lg"
+              >
+                Remove
+              </RetroButton>
+            </RetroWindow>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
       <RetroWindow
         title="Library.exe - GameMatch"
         // the ✕ goes back to the swipe page
         onClose={() => router.push("/")}
-        className="mx-auto max-w-[1520px]"
+        className="max-w-full lg:max-w-[calc(100%-520px)] 2xl:max-w-[calc(100%-648px)]"
+        style={windowW ? { width: windowW } : { width: "100%" }}
         bodyClassName="p-3 md:p-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className={`${displayFont.className} text-xs text-[#4fe3f0]`}>
+          <h1 className={`${displayFont.className} text-xl text-[#4fe3f0]`}>
             YOUR DECK
           </h1>
           <span className={`${uiFont.className} text-base text-[#ece9ff]`}>
@@ -152,7 +273,9 @@ export default function LibraryView() {
                             aria-label={`${g.title}${isSelected ? " (selected)" : ""}`}
                             className="block h-full w-full cursor-pointer text-left transition-transform duration-150 hover:-translate-y-3"
                             style={{
-                              transform: isSelected ? "translateY(-18px)" : undefined,
+                              transform: isSelected
+                                ? "translateY(-18px)"
+                                : undefined,
                               filter: isSelected
                                 ? "drop-shadow(0 0 10px #4fe3f0) drop-shadow(0 0 3px #4fe3f0)"
                                 : "brightness(0.8)",
@@ -167,43 +290,22 @@ export default function LibraryView() {
                 ))}
               </div>
             </div>
-
-            {/* Actions for the picked-up card */}
-            {current && (
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <span
-                  className={`${uiFont.className} min-w-0 flex-1 truncate text-lg text-white`}
-                >
-                  {current.title}
-                </span>
-                {current.metacritic != null && (
-                  <span
-                    className={`${uiFont.className} rounded-full border-2 border-[#14122b] px-2 py-0.5 text-sm font-bold text-[#14122b]`}
-                    style={{ backgroundColor: scoreColor(current.metacritic) }}
-                  >
-                    {current.metacritic}
-                  </span>
-                )}
-                <RetroButton variant="indigo" onClick={() => setViewing(current)}>
-                  View game
-                </RetroButton>
-                <RetroButton
-                  variant="magenta"
-                  onClick={() => remove(current.steam_app_id)}
-                >
-                  Remove
-                </RetroButton>
-              </div>
-            )}
           </>
         )}
       </RetroWindow>
 
       <AnimatePresence>
         {viewing && (
-          <GameDetails game={viewing} onClose={() => setViewing(null)} />
+          <GameDetails
+            game={viewing}
+            onClose={() => setViewing(null)}
+            onMaximize={() => {
+              setFullGame(viewing);
+              setViewing(null);
+            }}
+          />
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }

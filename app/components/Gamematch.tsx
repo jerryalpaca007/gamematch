@@ -22,7 +22,7 @@ import ActionButtons from "./ActionButtons";
 import GameDetails from "./GameDetails";
 import { useRouter } from "next/navigation";
 import { useSavedIds, writeSavedIds } from "@/app/lib/saved";
-import Pile, { PileList } from "./GamePiles";
+import Pile from "./GamePiles";
 import GameFullView from "./GameFullView";
 import { uiFont, displayFont } from "./fonts";
 import CardFace from "./CardFace";
@@ -69,8 +69,6 @@ const NARROW_BELOW = 770;
 // From this screen width the saved pile sits beside the card;
 // narrower screens centre it underneath
 const WIDE_FROM = 1200;
-// The same, while the menu is open (it takes some of the width)
-const WIDE_FROM_MENU = 1317;
 
 // ---------- Main component ----------
 export default function GameMatch() {
@@ -93,8 +91,6 @@ export default function GameMatch() {
   // saved games are read from the browser's storage, never kept as separate state
   const savedIds = useSavedIds();
   const router = useRouter();
-  // Which pile's full list is open, if any
-  const [pileOpen, setPileOpen] = useState<"saved" | null>(null);
   // The swipe in progress: which game is flying off and which way (1 = right,
   // -1 = left). The game only counts as seen once it has finished leaving.
   const [leaving, setLeaving] = useState<{ id: number; dir: 1 | -1 } | null>(
@@ -116,28 +112,16 @@ export default function GameMatch() {
         window.screen.width,
       );
       const narrow = w < NARROW_BELOW;
-      // With the menu open the page gives up some width, so the piles only fit
-      // beside the card on a wider screen (see the .page-shift rule in globals.css)
-      const menuOpen = document.documentElement.dataset.menu === "open";
       setLayout({
         narrow,
         // room for the saved pile beside the card
-        wide: w >= (menuOpen && w >= NARROW_BELOW ? WIDE_FROM_MENU : WIDE_FROM),
+        wide: w >= WIDE_FROM,
         scale: narrow ? Math.min(S, (w - 24) / 335) : S,
       });
     };
     fit();
     window.addEventListener("resize", fit);
-    // opening or closing the menu changes the room too
-    const watch = new MutationObserver(fit);
-    watch.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-menu"],
-    });
-    return () => {
-      window.removeEventListener("resize", fit);
-      watch.disconnect();
-    };
+    return () => window.removeEventListener("resize", fit);
   }, []);
 
   // Effect: runs once when the component first appears (empty array = run once)
@@ -332,26 +316,10 @@ export default function GameMatch() {
               accent="#4fe3f0"
               x={layout.wide ? 477 : 75}
               y={layout.wide ? 110 : layout.narrow ? 600 : 520}
-              onClick={() => setPileOpen("saved")}
-              onMaximize={() => router.push("/library")}
+              onClick={() => router.push("/library")}
             />
           </div>
         </div>
-
-        <AnimatePresence>
-          {pileOpen && (
-            <PileList
-              title="SAVED"
-              games={savedGames}
-              onOpen={(game) => {
-                setPileOpen(null);
-                setViewing(game);
-              }}
-              onClose={() => setPileOpen(null)}
-              onMaximize={() => router.push("/library")}
-            />
-          )}
-        </AnimatePresence>
 
         <AnimatePresence>
           {viewing && (

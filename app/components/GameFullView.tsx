@@ -20,7 +20,7 @@ function Section({
   return (
     <section className="mt-5">
       <h3
-        className={`${displayFont.className} border-b-2 border-[#d62fb8] pb-1 text-[10px] text-[#4fe3f0]`}
+        className={`${displayFont.className} border-b-2 border-[#d62fb8] pb-1 text-xl text-[#4fe3f0]`}
       >
         {title}
       </h3>
@@ -48,7 +48,10 @@ export default function GameFullView({
   const [shot, setShot] = useState(0);
   // true while the big "Screenshot" window is open
   const [zoom, setZoom] = useState(false);
-  const [reqs, setReqs] = useState<{ minimum: string | null; recommended: string | null }>({
+  const [reqs, setReqs] = useState<{
+    minimum: string | null;
+    recommended: string | null;
+  }>({
     minimum: null,
     recommended: null,
   });
@@ -91,14 +94,15 @@ export default function GameFullView({
     if (!zoom) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setZoom(false);
-      if (e.key === "ArrowLeft") setShot((i) => (i - 1 + shots.length) % shots.length);
+      if (e.key === "ArrowLeft")
+        setShot((i) => (i - 1 + shots.length) % shots.length);
       if (e.key === "ArrowRight") setShot((i) => (i + 1) % shots.length);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [zoom, shots.length]);
 
-  const badge = `${displayFont.className} retro-raised flex items-center gap-2 bg-[#a9a3e3] px-2 py-1 text-[10px] text-[#14122b]`;
+  const badge = `${uiFont.className} retro-raised flex items-center gap-2 bg-[#a9a3e3] px-2 py-1 text-sm text-[#14122b]`;
 
   return (
     <div>
@@ -107,7 +111,7 @@ export default function GameFullView({
       </RetroButton>
 
       <h2
-        className={`${displayFont.className} retro-glitch mt-4 text-lg font-bold leading-7 text-white`}
+        className={`${displayFont.className} retro-glitch mt-4 text-3xl font-bold leading-10 text-white`}
       >
         {game.title}
       </h2>
@@ -144,7 +148,6 @@ export default function GameFullView({
         </RetroButton>
       </div>
 
-
       <div className="mt-4 grid gap-5 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         {/* Left: cover, quick facts and the buy button */}
         <div>
@@ -162,7 +165,11 @@ export default function GameFullView({
                 aria-label="Open screenshot in a bigger window"
                 className="retro-inset block w-full cursor-zoom-in bg-black p-1.5"
               >
-                <img src={shots[shot].full} alt={`${game.title} screenshot ${shot + 1}`} className="w-full" />
+                <img
+                  src={shots[shot].full}
+                  alt={`${game.title} screenshot ${shot + 1}`}
+                  className="w-full"
+                />
               </button>
               <div className="mt-2 grid grid-cols-4 gap-2">
                 {shots.map((sh, i) => (
@@ -194,7 +201,9 @@ export default function GameFullView({
               {description ?? game.summary}
             </p>
             {loading && (
-              <p className={`${uiFont.className} mt-1 text-base text-[#a9a3e3]`}>
+              <p
+                className={`${uiFont.className} mt-1 text-base text-[#a9a3e3]`}
+              >
                 Loading full description...
               </p>
             )}
@@ -213,7 +222,7 @@ export default function GameFullView({
                     text && (
                       <div key={label} className="retro-inset bg-[#14122b] p-2">
                         <div
-                          className={`${displayFont.className} text-[9px] text-[#d62fb8]`}
+                          className={`${uiFont.className} text-base text-[#d62fb8]`}
                         >
                           {label.toUpperCase()}
                         </div>
@@ -228,7 +237,9 @@ export default function GameFullView({
               </div>
             ) : (
               <p className={`${uiFont.className} text-base text-[#a9a3e3]`}>
-                {loading ? "Loading specs..." : "Steam lists no specs for this game."}
+                {loading
+                  ? "Loading specs..."
+                  : "Steam lists no specs for this game."}
               </p>
             )}
           </Section>
@@ -303,7 +314,9 @@ export default function GameFullView({
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <RetroButton
                     variant="white"
-                    onClick={() => setShot((i) => (i - 1 + shots.length) % shots.length)}
+                    onClick={() =>
+                      setShot((i) => (i - 1 + shots.length) % shots.length)
+                    }
                   >
                     ◄ Prev
                   </RetroButton>

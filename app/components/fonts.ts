@@ -1,13 +1,7 @@
-import { Silkscreen } from "next/font/google";
-import localFont from "next/font/local";
-
-// uiFont: body text, buttons, window titles and all running text. Cairopixel is a
-// pixel font (OFL licence) with readable digits (file in app/fonts).
-export const uiFont = localFont({
-  src: "../fonts/Cairopixel.ttf",
-  display: "swap",
-  // the font is drawn small (made for 16px), so enlarge it everywhere
-  declarations: [{ prop: "size-adjust", value: "135%" }],
-});
-// displayFont: the logo and big all-caps headings (no long numbers).
-export const displayFont = Silkscreen({ subsets: ["latin"], weight: ["400", "700"] });
+// The two fonts of the site. Both are plain CSS classes defined in globals.css
+// (the files are in public/fonts).
+// uiFont: Tiny5 (OFL) for everything that is not a heading: a square, heavy
+// pixel font close to PixSpace, but with clear digits and lowercase letters.
+export const uiFont = { className: "font-ui" };
+// displayFont: Ozone, the dotted font for headings, titles and the logo.
+export const displayFont = { className: "font-display" };

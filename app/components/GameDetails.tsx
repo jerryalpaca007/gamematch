@@ -91,7 +91,7 @@ export default function GameDetails({ game, onClose, onMaximize }: Props) {
             </div>
 
             <h2
-              className={`${displayFont.className} retro-glitch mt-4 text-base font-bold leading-6 text-white`}
+              className={`${displayFont.className} retro-glitch mt-4 text-2xl font-bold leading-8 text-white`}
             >
               {game.title}
             </h2>
@@ -103,7 +103,7 @@ export default function GameDetails({ game, onClose, onMaximize }: Props) {
             <div className="mt-3 flex flex-wrap items-center gap-3">
               {game.metacritic != null && (
                 <span
-                  className={`${displayFont.className} retro-raised flex items-center gap-2 bg-[#a9a3e3] px-2 py-1 text-[10px] text-[#14122b]`}
+                  className={`${uiFont.className} retro-raised flex items-center gap-2 bg-[#a9a3e3] px-2 py-1 text-sm text-[#14122b]`}
                 >
                   METACRITIC
                   <span
@@ -116,7 +116,7 @@ export default function GameDetails({ game, onClose, onMaximize }: Props) {
               )}
               {price && (
                 <span
-                  className={`${displayFont.className} retro-raised bg-[#a9a3e3] px-2 py-1 text-[10px] text-[#14122b]`}
+                  className={`${uiFont.className} retro-raised bg-[#a9a3e3] px-2 py-1 text-sm text-[#14122b]`}
                 >
                   {price}
                 </span>
@@ -125,7 +125,7 @@ export default function GameDetails({ game, onClose, onMaximize }: Props) {
 
             {/* Full description, or the short one while loading or if Steam fails */}
             <h3
-              className={`${displayFont.className} mt-5 text-[10px] text-[#4fe3f0]`}
+              className={`${displayFont.className} mt-5 text-xl text-[#4fe3f0]`}
             >
               ABOUT
             </h3>

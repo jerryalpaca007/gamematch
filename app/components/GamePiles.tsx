@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Game } from "./Gamematch";
-import { uiFont, displayFont } from "./fonts";
-import { CARD_W, CARD_H, px, scoreColor } from "./cardScale";
+import { uiFont } from "./fonts";
+import { CARD_W, CARD_H, px } from "./cardScale";
 import CardFace from "./CardFace";
 import RetroWindow from "./RetroWindow";
-import RetroButton from "./RetroButton";
 
 // How much smaller a card in the pile is than the card you swipe
 const MINI = 0.38;
@@ -18,9 +16,9 @@ const PILE_ROOM = 152; // width the fan of cards may use
 const MAX_SHOWN = 8; // only the newest cards are drawn
 const MAX_STEP = 10; // gap between the left edges of neighbouring cards
 
-// A small window holding a pile of the most recent cards (passed or saved), with
-// a count in its title bar. Clicking it opens the full list. x and y are design
-// units from the card's top-left corner, like the buttons.
+// A small window holding the most recent saved cards, with a count in its title
+// bar. Clicking anywhere on it runs onClick (the main page goes to the Library).
+// x and y are design units from the card's top-left corner, like the buttons.
 export default function Pile({
   label,
   games,
@@ -28,7 +26,6 @@ export default function Pile({
   x,
   y,
   onClick,
-  onMaximize,
 }: {
   label: string;
   games: Game[];
@@ -36,8 +33,6 @@ export default function Pile({
   x: number;
   y: number;
   onClick: () => void;
-  // when given, the maximize square shows and runs this
-  onMaximize?: () => void;
 }) {
   const shown = games.slice(-MAX_SHOWN); // the newest one is on top, at the right
   // the left edges are STEP apart, shrinking so that every card fits in the window
@@ -53,21 +48,16 @@ export default function Pile({
   return (
     <div
       role="button"
-      tabIndex={empty ? -1 : 0}
-      aria-disabled={empty}
-      aria-label={`${label}: ${games.length}. Open the list`}
-      onClick={() => !empty && onClick()}
+      tabIndex={0}
+      aria-label={`${label}: ${games.length}. Open the library`}
+      onClick={onClick}
       onKeyDown={(e) => {
-        if (!empty && (e.key === "Enter" || e.key === " ")) onClick();
+        if (e.key === "Enter" || e.key === " ") onClick();
       }}
-      className={`absolute z-10 ${empty ? "cursor-default" : "cursor-pointer active:translate-y-px"}`}
+      className="absolute z-10 cursor-pointer active:translate-y-px"
       style={{ left: px(x), top: px(y), width: px(PILE_W) }}
     >
-      <RetroWindow
-        title={`${label} (${games.length})`}
-        maximizable={!!onMaximize}
-        onMaximize={onMaximize}
-      >
+      <RetroWindow title={`${label} (${games.length})`}>
         <div
           className="relative overflow-hidden"
           style={{
@@ -94,7 +84,8 @@ export default function Pile({
                   height: px(MINI * 488),
                   zIndex: i,
                   // older cards are a little dimmer, like unselected cards in the Library
-                  filter: i === shown.length - 1 ? undefined : "brightness(0.8)",
+                  filter:
+                    i === shown.length - 1 ? undefined : "brightness(0.8)",
                 }}
                 initial={{ scale: 0.4, opacity: 0, y: -50 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -117,105 +108,5 @@ export default function Pile({
         </div>
       </RetroWindow>
     </div>
-  );
-}
-
-// The full list for one pile, newest first. Clicking a game opens its details.
-export function PileList({
-  title,
-  games,
-  onOpen,
-  onClose,
-  onMaximize,
-}: {
-  title: string;
-  games: Game[];
-  onOpen: (game: Game) => void;
-  // when given, the maximize square shows and runs this
-  onMaximize?: () => void;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const newestFirst = [...games].reverse();
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <motion.div
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className="w-full max-w-md"
-        initial={{ scale: 0.92, y: 24 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.92, y: 24, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <RetroWindow
-          title={`${title} (${games.length})`}
-          onClose={onClose}
-          maximizable={!!onMaximize}
-          onMaximize={onMaximize}
-          bodyClassName="flex max-h-[80vh] flex-col"
-        >
-          <ul className="flex-1 space-y-2 overflow-y-auto p-3">
-            {newestFirst.map((g) => (
-              <li key={g.steam_app_id}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(g)}
-                  className="retro-raised flex w-full items-center gap-3 bg-[#a9a3e3] p-2 text-left active:translate-x-px active:translate-y-px"
-                >
-                  <span
-                    className="retro-inset relative block w-24 shrink-0 bg-black"
-                    style={{ aspectRatio: "460 / 215" }}
-                  >
-                    {g.header_url && (
-                      <img
-                        src={g.header_url}
-                        alt=""
-                        draggable={false}
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                    )}
-                  </span>
-                  <span
-                    className={`${uiFont.className} min-w-0 flex-1 truncate text-lg font-bold leading-6 text-[#14122b]`}
-                  >
-                    {g.title}
-                  </span>
-                  {g.metacritic != null && (
-                    <span
-                      className={`${uiFont.className} shrink-0 rounded-full border-2 border-[#14122b] px-2 py-1 text-[13px] font-bold text-[#14122b]`}
-                      style={{ backgroundColor: scoreColor(g.metacritic) }}
-                    >
-                      {g.metacritic}
-                    </span>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
-
-          <div className="flex justify-center border-t-2 border-[#1b1a24] px-4 py-3">
-            <RetroButton variant="white" onClick={onClose}>
-              Close
-            </RetroButton>
-          </div>
-        </RetroWindow>
-      </motion.div>
-    </motion.div>
   );
 }

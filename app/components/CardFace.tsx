@@ -98,7 +98,7 @@ export default function CardFace({
             }}
           >
             <span
-              className={`${displayFont.className} shrink-0 italic`}
+              className={`${uiFont.className} shrink-0 italic`}
               style={{
                 fontSize: px(7),
                 color: "#fff",
@@ -129,7 +129,7 @@ export default function CardFace({
               {game.title}
             </span>
             <span
-              className={`${displayFont.className} shrink-0`}
+              className={`${uiFont.className} shrink-0`}
               style={{ fontSize: px(7), color: INK }}
             >
               SCORE
@@ -205,7 +205,7 @@ export default function CardFace({
           >
             <div className="flex items-center" style={{ gap: px(6) }}>
               <span
-                className={`${displayFont.className} shrink-0 text-white`}
+                className={`${uiFont.className} shrink-0 text-white`}
                 style={{
                   fontSize: px(8),
                   background: "linear-gradient(#e847cb,#a81f90)",
@@ -217,7 +217,7 @@ export default function CardFace({
                 INFO
               </span>
               <span
-                className={`${displayFont.className} min-w-0 truncate font-bold`}
+                className={`${uiFont.className} min-w-0 truncate font-bold`}
                 style={{ fontSize: px(10), color: "#b3158c" }}
               >
                 {genres.slice(0, 3).join(" · ")}
@@ -266,13 +266,13 @@ export default function CardFace({
                   ))}
                 </span>
                 <span
-                  className={`${displayFont.className} min-w-0 flex-1 truncate font-bold`}
+                  className={`${uiFont.className} min-w-0 flex-1 truncate font-bold`}
                   style={{ fontSize: px(10), color: INK }}
                 >
                   {m.label}
                 </span>
                 <span
-                  className={`${displayFont.className} font-bold`}
+                  className={`${uiFont.className} font-bold`}
                   style={{ fontSize: px(13), color: INK }}
                 >
                   {game.mood[m.key]}
