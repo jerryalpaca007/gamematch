@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
-import { readSavedIds, writeSavedIds } from "@/app/lib/saved";
+import { removeGame, useSaved } from "@/app/lib/saved";
+import { useUser } from "@/app/lib/auth";
+import { SaveError } from "./SignInPrompt";
 import type { Game } from "./Gamematch";
 import CardFace from "./CardFace";
 import GameDetails from "./GameDetails";
@@ -33,9 +35,12 @@ const CHROME = 100;
 // overlap like a fanned deck; hover lifts one, click lifts and highlights it.
 export default function LibraryView() {
   const router = useRouter();
-  const [saved, setSaved] = useState<Game[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<number | null>(null);
+  const { user, loading: authLoading } = useUser();
+  const { ids, loading: savedLoading, error: saveError } = useSaved();
+  // every game, loaded once, to turn the saved ids into cards
+  const [catalog, setCatalog] = useState<Map<number, Game> | null>(null);
+  // the picked card: undefined = the newest one, null = none
+  const [picked, setSelected] = useState<number | null | undefined>(undefined);
   const [viewing, setViewing] = useState<Game | null>(null);
   // The game shown full size (replaces the deck until you go back)
   const [fullGame, setFullGame] = useState<Game | null>(null);
@@ -82,36 +87,42 @@ export default function LibraryView() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const ids = readSavedIds();
-        if (ids.length === 0) return;
-        const all = await fetchGamesFromSupabase();
+    fetchGamesFromSupabase()
+      .then((all) => {
         if (cancelled) return;
-        const byId = new Map(all.map((g) => [g.steam_app_id, g]));
-        // keep the order they were saved in
-        const games = ids
-          .map((id) => byId.get(id))
-          .filter((g): g is NonNullable<typeof g> => !!g)
-          .map(enrichGameData);
-        setSaved(games);
-        setSelected(games.length ? games[games.length - 1].steam_app_id : null);
-      } catch (error) {
+        setCatalog(
+          new Map(all.map((g) => [g.steam_app_id, enrichGameData(g)])),
+        );
+      })
+      .catch((error) => {
         console.error("Failed to load the library:", error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+        if (!cancelled) setCatalog(new Map());
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  // the saved games, in the order they were saved
+  const saved = useMemo(
+    () =>
+      ids
+        .map((id) => catalog?.get(id))
+        .filter((g): g is Game => g !== undefined),
+    [ids, catalog],
+  );
+  const loading = authLoading || savedLoading || catalog === null;
+  const signedOut = !authLoading && !user;
+  const selected =
+    picked === null
+      ? null
+      : picked !== undefined && ids.includes(picked)
+        ? picked
+        : (saved[saved.length - 1]?.steam_app_id ?? null);
+
   const remove = (id: number) => {
-    const next = saved.filter((g) => g.steam_app_id !== id);
-    setSaved(next);
-    writeSavedIds(next.map((g) => g.steam_app_id));
-    setSelected(next.length ? next[next.length - 1].steam_app_id : null);
+    setSelected(undefined);
+    void removeGame(id);
   };
 
   // the deck in rows of PER_ROW, in the order the games were saved
@@ -229,11 +240,25 @@ export default function LibraryView() {
             YOUR DECK
           </h1>
           <span className={`${uiFont.className} text-base text-[#ece9ff]`}>
-            {loading ? "Loading..." : `${saved.length} saved`}
+            {signedOut ? "" : loading ? "Loading..." : `${saved.length} saved`}
           </span>
         </div>
 
-        {!loading && saved.length === 0 ? (
+        {signedOut ? (
+          <div className="flex flex-col items-center gap-4 py-16 text-center">
+            <p className={`${uiFont.className} text-lg text-[#a9a3e3]`}>
+              Sign in to see your saved games.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <RetroButton variant="indigo" href="/login">
+                Sign in
+              </RetroButton>
+              <RetroButton variant="magenta" href="/signup">
+                Sign up
+              </RetroButton>
+            </div>
+          </div>
+        ) : !loading && saved.length === 0 ? (
           <div className="flex flex-col items-center gap-4 py-16 text-center">
             <p className={`${uiFont.className} text-lg text-[#a9a3e3]`}>
               Your deck is empty. Save games on the swipe page and they will
@@ -293,6 +318,8 @@ export default function LibraryView() {
           </>
         )}
       </RetroWindow>
+
+      <SaveError message={saveError} />
 
       <AnimatePresence>
         {viewing && (

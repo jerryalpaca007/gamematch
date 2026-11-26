@@ -7,7 +7,16 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error("Missing Supabase environment variables");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// This client only reads the public games list. It never carries a signed-in
+// session (that is lib/supabase.ts), so the games load the same for everyone.
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+    storageKey: "gamematch-games",
+  },
+});
 
 export interface SteamGame {
   steam_app_id: number;

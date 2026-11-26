@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import RetroButton from "./RetroButton";
-import { displayFont } from "./fonts";
+import { displayFont, uiFont } from "./fonts";
+import { displayName, signOut, useUser } from "@/app/lib/auth";
 
 // Add a link here and it shows up in the menu on every screen size
 const links = [
@@ -17,6 +18,11 @@ const links = [
 // The menu button in the navbar and the window it opens
 export default function NavMenu() {
   const [open, setOpen] = useState(false);
+  const { user } = useUser();
+  // signed in: no need for the Sign up and Login links
+  const shown = links.filter(
+    (link) => !user || (link.href !== "/signup" && link.href !== "/login"),
+  );
 
   // Escape closes the menu
   useEffect(() => {
@@ -85,7 +91,14 @@ export default function NavMenu() {
               </button>
             </div>
             <div className="retro-inset mt-[3px] flex flex-1 flex-col gap-3 overflow-y-auto bg-[#3b3a44] p-4">
-              {links.map((link) => (
+              {user && (
+                <p
+                  className={`${uiFont.className} break-words text-center text-base text-[#ece9ff]`}
+                >
+                  Signed in as {displayName(user)}
+                </p>
+              )}
+              {shown.map((link) => (
                 <RetroButton
                   key={link.href}
                   variant={link.variant}
@@ -96,6 +109,18 @@ export default function NavMenu() {
                   {link.label}
                 </RetroButton>
               ))}
+              {user && (
+                <RetroButton
+                  variant="magenta"
+                  onClick={() => {
+                    setOpen(false);
+                    void signOut();
+                  }}
+                  className="w-full"
+                >
+                  Sign out
+                </RetroButton>
+              )}
             </div>
           </motion.nav>
         )}

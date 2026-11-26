@@ -12,6 +12,8 @@ type Props = {
   onClick?: () => void;
   className?: string;
   ariaLabel?: string;
+  // "submit" for the button that sends a form
+  type?: "button" | "submit";
 };
 
 // A glossy bevelled button like the ones in the reference windows. Renders a
@@ -24,6 +26,7 @@ export default function RetroButton({
   onClick,
   className = "",
   ariaLabel,
+  type = "button",
 }: Props) {
   const classes = `retro-btn retro-btn-${variant} ${uiFont.className} text-sm ${className}`;
 
@@ -54,7 +57,7 @@ export default function RetroButton({
   }
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       className={classes}
       aria-label={ariaLabel}

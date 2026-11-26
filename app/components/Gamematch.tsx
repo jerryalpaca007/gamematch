@@ -21,7 +21,9 @@ import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
 import ActionButtons from "./ActionButtons";
 import GameDetails from "./GameDetails";
 import { useRouter } from "next/navigation";
-import { useSavedIds, writeSavedIds } from "@/app/lib/saved";
+import { saveGame, useSaved } from "@/app/lib/saved";
+import { useUser } from "@/app/lib/auth";
+import SignInPrompt, { SaveError } from "./SignInPrompt";
 import Pile from "./GamePiles";
 import GameFullView from "./GameFullView";
 import { uiFont, displayFont } from "./fonts";
@@ -88,8 +90,11 @@ export default function GameMatch() {
   // The game shown full size (replaces the swipe console until you go back)
   const [fullGame, setFullGame] = useState<Game | null>(null);
   const [seenIds, setSeenIds] = useState<Set<number>>(new Set());
-  // saved games are read from the browser's storage, never kept as separate state
-  const savedIds = useSavedIds();
+  // saved games belong to the account (lib/saved.ts), not to this page
+  const { ids: savedIds, error: saveError } = useSaved();
+  const { user, loading: authLoading } = useUser();
+  // true while the "you need an account" window is open
+  const [askSignIn, setAskSignIn] = useState(false);
   const router = useRouter();
   // The swipe in progress: which game is flying off and which way (1 = right,
   // -1 = left). The game only counts as seen once it has finished leaving.
@@ -204,31 +209,31 @@ export default function GameMatch() {
 
   // Step 1: a drag, flick or button press asks the top card to fly away.
   // Nothing changes in the deck yet, so the next game stays visible behind it.
-  const requestSwipe = (liked: boolean) => {
-    if (!currentGame || leaving) return;
+  // Returns false when the swipe is refused, so a dragged card can spring back.
+  const requestSwipe = (liked: boolean): boolean => {
+    if (!currentGame || leaving) return false;
+    // saving needs an account; passing doesn't
+    if (liked && !user) {
+      if (!authLoading) setAskSignIn(true);
+      return false;
+    }
     setLeaving({ id: currentGame.steam_app_id, dir: liked ? 1 : -1 });
+    return true;
   };
 
   // Step 2: the card has fully left the screen. Now it counts as seen (and is
   // saved if liked), and the next card moves up.
   const commitSwipe = () => {
     if (!leaving) return;
-    const game = games.find((g) => g.steam_app_id === leaving.id);
     // Create a new Set instead of changing the old one, so React sees the update
     setSeenIds((prev) => new Set(prev).add(leaving.id));
-    if (game && leaving.dir === 1) {
-      // saving is the one place the list grows, and it goes straight to storage
-      writeSavedIds([
-        ...savedIds.filter((id) => id !== game.steam_app_id),
-        game.steam_app_id,
-      ]);
-    }
+    if (leaving.dir === 1) void saveGame(leaving.id);
     setLeaving(null);
   };
 
   const handleReset = () => {
+    // brings passed games back; saved games stay in the account
     setSeenIds(new Set());
-    writeSavedIds([]);
   };
 
   return (
@@ -322,6 +327,11 @@ export default function GameMatch() {
         </div>
 
         <AnimatePresence>
+          {askSignIn && <SignInPrompt onClose={() => setAskSignIn(false)} />}
+        </AnimatePresence>
+        <SaveError message={saveError} />
+
+        <AnimatePresence>
           {viewing && (
             <GameDetails
               game={viewing}
@@ -371,7 +381,7 @@ function SwipeCard({
   totalCards?: number;
   // 1 or -1 while this card is flying off the screen, otherwise null
   leaving: 1 | -1 | null;
-  onRequestSwipe: (liked: boolean) => void;
+  onRequestSwipe: (liked: boolean) => boolean;
   onCommit: () => void;
 }) {
   const isTop = index === 0;
@@ -410,10 +420,10 @@ function SwipeCard({
     _: unknown,
     info: { offset: { x: number }; velocity: { x: number } },
   ) => {
-    if (info.offset.x > 100 || info.velocity.x > 600) onRequestSwipe(true);
-    else if (info.offset.x < -100 || info.velocity.x < -600)
-      onRequestSwipe(false);
-    else animate(x, 0, { type: "spring", stiffness: 500, damping: 40 });
+    const right = info.offset.x > 100 || info.velocity.x > 600;
+    const left = info.offset.x < -100 || info.velocity.x < -600;
+    if ((right || left) && onRequestSwipe(right)) return;
+    animate(x, 0, { type: "spring", stiffness: 500, damping: 40 });
   };
 
   return (

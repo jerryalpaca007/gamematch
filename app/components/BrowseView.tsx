@@ -7,6 +7,9 @@ import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
 import type { Game } from "./Gamematch";
 import GameDetails from "./GameDetails";
 import GameFullView from "./GameFullView";
+import SignInPrompt, { SaveError } from "./SignInPrompt";
+import { useUser } from "@/app/lib/auth";
+import { removeGame, saveGame, useSaved } from "@/app/lib/saved";
 import RetroWindow from "./RetroWindow";
 import RetroButton from "./RetroButton";
 import PixelIcon from "./PixelIcon";
@@ -195,7 +198,17 @@ function RamSelect({
 
 // ---------- one game in the grid ----------
 
-function Tile({ game, onOpen }: { game: Game; onOpen: () => void }) {
+function Tile({
+  game,
+  onOpen,
+  saved,
+  onSave,
+}: {
+  game: Game;
+  onOpen: () => void;
+  saved: boolean;
+  onSave: () => void;
+}) {
   const genres = Array.isArray(game.genres) ? game.genres : [game.genres];
   return (
     <div className="retro-raised flex flex-col bg-[#a9a3e3] p-1.5">
@@ -250,16 +263,19 @@ function Tile({ game, onOpen }: { game: Game; onOpen: () => void }) {
             </span>
           )}
         </span>
-        {/* Placeholder until accounts exist: there is nowhere to keep saves yet */}
         <button
           type="button"
-          disabled
-          title="Saving comes with accounts"
-          aria-label={`Save ${game.title} (coming soon)`}
-          className="retro-btn retro-btn-white !px-2 !py-0.5 text-xs opacity-60"
+          onClick={onSave}
+          aria-pressed={saved}
+          aria-label={`${saved ? "Remove" : "Save"} ${game.title}`}
+          className={`retro-btn ${saved ? "retro-btn-indigo" : "retro-btn-white"} !px-2 !py-0.5 text-xs`}
         >
-          <PixelIcon name="star" color="#14122b" size="12px" />
-          SAVE
+          <PixelIcon
+            name="star"
+            color={saved ? "#ffffff" : "#14122b"}
+            size="12px"
+          />
+          {saved ? "SAVED" : "SAVE"}
         </button>
       </div>
     </div>
@@ -273,6 +289,16 @@ export default function BrowseView() {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewing, setViewing] = useState<Game | null>(null);
+  const { user, loading: authLoading } = useUser();
+  const { ids: savedIds, error: saveError } = useSaved();
+  const [askSignIn, setAskSignIn] = useState(false);
+  const toggleSave = (id: number) => {
+    if (!user) {
+      if (!authLoading) setAskSignIn(true);
+      return;
+    }
+    void (savedIds.includes(id) ? removeGame(id) : saveGame(id));
+  };
   // the game shown full size inside the Browse window (null = the results)
   const [fullGame, setFullGame] = useState<Game | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -642,6 +668,8 @@ export default function BrowseView() {
                       key={g.steam_app_id}
                       game={g}
                       onOpen={() => setViewing(g)}
+                      saved={savedIds.includes(g.steam_app_id)}
+                      onSave={() => toggleSave(g.steam_app_id)}
                     />
                   ))}
                 </div>
@@ -675,6 +703,11 @@ export default function BrowseView() {
           </>
         )}
       </RetroWindow>
+
+      <AnimatePresence>
+        {askSignIn && <SignInPrompt onClose={() => setAskSignIn(false)} />}
+      </AnimatePresence>
+      <SaveError message={saveError} />
 
       <AnimatePresence>
         {viewing && (
