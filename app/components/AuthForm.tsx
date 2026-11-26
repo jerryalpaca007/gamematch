@@ -281,7 +281,16 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
           </RetroButton>
 
           {(mode === "login" || mode === "signup") && (
-            <GoogleButton onError={setError} />
+            <>
+              <GoogleButton onError={setError} />
+              {/* a full page load: the server sends the browser on to Steam */}
+              <a
+                href="/api/auth/steam"
+                className={`retro-btn retro-btn-white ${uiFont.className} w-full !py-3 !text-lg`}
+              >
+                Continue with Steam
+              </a>
+            </>
           )}
 
           <div role="status" className={`${uiFont.className} text-center`}>
