@@ -67,10 +67,15 @@ export async function GET(
   );
 
   // Steam sends [] instead of an object when a game lists no requirements
-  const req = Array.isArray(data.pc_requirements) ? {} : (data.pc_requirements ?? {});
+  const req = Array.isArray(data.pc_requirements)
+    ? {}
+    : (data.pc_requirements ?? {});
   const reqText = (html?: string) =>
     html
-      ? htmlToText(html.replace(/<\/?strong>/gi, "")).replace(/^(minimum|recommended):\s*/i, "")
+      ? htmlToText(html.replace(/<\/?strong>/gi, "")).replace(
+          /^(minimum|recommended):\s*/i,
+          "",
+        )
       : null;
 
   return Response.json({

@@ -9,13 +9,7 @@ import {
   useRef,
   type CSSProperties,
 } from "react";
-import {
-  motion,
-  useMotionValue,
-  useTransform,
-  animate,
-  AnimatePresence,
-} from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { RotateCcw } from "lucide-react";
 import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
 import ActionButtons from "./ActionButtons";
@@ -26,41 +20,18 @@ import { useUser } from "@/app/lib/auth";
 import SignInPrompt, { SaveError } from "./SignInPrompt";
 import Pile from "./GamePiles";
 import GameFullView from "./GameFullView";
-import { uiFont, displayFont } from "./fonts";
-import CardFace from "./CardFace";
-import { MOODS, type MoodScores } from "./moods";
+import { uiFont } from "./fonts";
+import SwipeCard from "./SwipeCard";
+import { MOODS } from "./moods";
+import type { Game } from "@/app/lib/types";
 import { S, px, CARD_W, CARD_H } from "./cardScale";
 import RetroWindow from "./RetroWindow";
 import RetroButton from "./RetroButton";
 
-// ---------- Types ----------
-// A type describes the shape of data, so TypeScript can catch mistakes.
-
-export interface Game {
-  steam_app_id: number;
-  title: string;
-  emoji: string;
-  genres: string | string[];
-  year: number;
-  summary: string;
-  mood: MoodScores;
-  bg: string;
-  header_url?: string | null;
-  metacritic?: number | null;
-  tags?: string[];
-  categories?: string[];
-  // hardware needs from Steam's minimum requirements (null = not known)
-  min_ram_gb?: number | null;
-  min_graphics?: string | null;
-  integrated_ok?: boolean | null;
-  jitter?: number; // random 0-1, picked once per page load, so the deck order varies
-}
-
-// How much the random bonus can move a game in the ranking. A game's mood
-// score is roughly 20-60, so this mixes things up without ignoring the sliders.
+// Ranking: a game scores its mood total times MOOD_WEIGHT (roughly 30-65), plus
+// a random bonus of up to JITTER_WEIGHT so the order differs on every visit
+const MOOD_WEIGHT = 3;
 const JITTER_WEIGHT = 25;
-
-const DEFAULT_GAMES: Game[] = [];
 
 // How many cards beyond the 3 on screen get their image loaded in advance
 const PRELOAD_AHEAD = 6;
@@ -75,15 +46,8 @@ const WIDE_FROM = 1200;
 // ---------- Main component ----------
 export default function GameMatch() {
   // State: values that change over time and trigger a re-render when updated
-  const [games, setGames] = useState<Game[]>(DEFAULT_GAMES);
+  const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sliders, setSliders] = useState<MoodScores>({
-    excitement: 3,
-    chill: 3,
-    puzzle: 3,
-    story: 3,
-    challenge: 3,
-  });
   // A Set is a fast way to ask "have I seen this game?"
   // The game shown in the expanded view, or null when it is closed
   const [viewing, setViewing] = useState<Game | null>(null);
@@ -140,7 +104,7 @@ export default function GameMatch() {
         const steamGames = await fetchGamesFromSupabase();
         if (cancelled) return;
         if (steamGames.length > 0) {
-          // Add mood, emoji, and color fields to each raw game
+          // Add mood and colour fields to each raw game
           const all: Game[] = steamGames.map((g) => ({
             ...enrichGameData(g),
             jitter: Math.random(),
@@ -167,27 +131,19 @@ export default function GameMatch() {
       .filter((g): g is Game => g !== undefined);
   }, [games, savedIds]);
 
-  // Every unseen game, best match first: drop seen games, score the rest
-  // against the sliders (plus the random bonus). useMemo means the sort runs
-  // only when one of these inputs changes, not on every render.
-  const ranked = useMemo(
-    () =>
-      games
-        .filter(
-          (g) =>
-            !seenIds.has(g.steam_app_id) && !savedIds.includes(g.steam_app_id),
-        )
-        .sort((a, b) => {
-          const scoreA =
-            MOODS.reduce((sum, m) => sum + sliders[m.key] * a.mood[m.key], 0) +
-            (a.jitter ?? 0) * JITTER_WEIGHT;
-          const scoreB =
-            MOODS.reduce((sum, m) => sum + sliders[m.key] * b.mood[m.key], 0) +
-            (b.jitter ?? 0) * JITTER_WEIGHT;
-          return scoreB - scoreA;
-        }),
-    [games, seenIds, savedIds, sliders],
-  );
+  // Every unseen game, best first. useMemo means the sort runs only when one of
+  // these inputs changes, not on every render.
+  const ranked = useMemo(() => {
+    const score = (g: Game) =>
+      MOODS.reduce((sum, m) => sum + g.mood[m.key], 0) * MOOD_WEIGHT +
+      (g.jitter ?? 0) * JITTER_WEIGHT;
+    return games
+      .filter(
+        (g) =>
+          !seenIds.has(g.steam_app_id) && !savedIds.includes(g.steam_app_id),
+      )
+      .sort((a, b) => score(b) - score(a));
+  }, [games, seenIds, savedIds]);
   // The 3 cards on screen
   const currentDeck = useMemo(() => ranked.slice(0, 3), [ranked]);
 
@@ -241,7 +197,7 @@ export default function GameMatch() {
       {/* Hidden, not removed, while a game is full size: the deck stays exactly as
         you left it */}
       <div
-        className={`mx-auto max-w-md px-4 py-8 font-serif text-amber-950 dark:text-amber-50 ${fullGame ? "hidden" : ""}`}
+        className={`mx-auto max-w-md px-4 py-8 ${fullGame ? "hidden" : ""}`}
         style={{ "--s": layout.scale } as CSSProperties}
       >
         {/* Console: sized from cardScale.ts. The pixel buttons are positioned
@@ -302,7 +258,7 @@ export default function GameMatch() {
               )}
             </div>
 
-            {/* Pixel buttons: green = pass, orange = save, the rest are decorative */}
+            {/* Pass, Save and View */}
             {currentGame && (
               <ActionButtons
                 narrow={layout.narrow}
@@ -361,112 +317,5 @@ export default function GameMatch() {
         </div>
       )}
     </>
-  );
-}
-
-// ---------- Swipe card ----------
-// One card: the same panel style as the expanded view (black notched outline,
-// light-blue body). Only the top card is draggable. The cards behind it show
-// their contents too, so the next game is visible as the top card moves away.
-function SwipeCard({
-  game,
-  index = 0,
-  totalCards = 1,
-  leaving,
-  onRequestSwipe,
-  onCommit,
-}: {
-  game: Game;
-  index?: number;
-  totalCards?: number;
-  // 1 or -1 while this card is flying off the screen, otherwise null
-  leaving: 1 | -1 | null;
-  onRequestSwipe: (liked: boolean) => boolean;
-  onCommit: () => void;
-}) {
-  const isTop = index === 0;
-
-  // x follows the finger; tilt, fade and the SAVE / PASS stamps are derived from it
-  const x = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-12, 12]);
-  const fade = useTransform(x, [-600, -250, 0, 250, 600], [0, 1, 1, 1, 0]);
-  const opacityLike = useTransform(x, [10, 100], [0, 1]);
-  const opacityNope = useTransform(x, [-10, -100], [0, 1]);
-
-  // Cards behind the top one are smaller and lower, which makes the stack.
-  // 30+ keeps every card above the pixel buttons (z-20) while it moves.
-  const scale = 1 - index * 0.05;
-  const yOffset = index * 12;
-  const zIndex = 30 + totalCards - index;
-
-  // When asked to leave, slide off the screen from wherever the card is now,
-  // and only then tell the deck (onCommit). A ref keeps the latest onCommit.
-  const commitRef = useRef(onCommit);
-  useEffect(() => {
-    commitRef.current = onCommit;
-  });
-  useEffect(() => {
-    if (leaving === null) return;
-    const controls = animate(x, leaving * 700, {
-      duration: 0.26,
-      ease: "easeIn",
-      onComplete: () => commitRef.current(),
-    });
-    return () => controls.stop();
-  }, [leaving, x]);
-
-  // A long drag or a quick flick asks for a swipe; otherwise the card springs back
-  const handleDragEnd = (
-    _: unknown,
-    info: { offset: { x: number }; velocity: { x: number } },
-  ) => {
-    const right = info.offset.x > 100 || info.velocity.x > 600;
-    const left = info.offset.x < -100 || info.velocity.x < -600;
-    if ((right || left) && onRequestSwipe(right)) return;
-    animate(x, 0, { type: "spring", stiffness: 500, damping: 40 });
-  };
-
-  return (
-    <motion.div
-      initial={{ scale, y: yOffset }}
-      animate={{ scale, y: yOffset }}
-      // when a card moves up the stack it springs into place
-      transition={{ type: "spring", stiffness: 320, damping: 30 }}
-      style={{
-        x: isTop ? x : 0,
-        rotate: isTop ? rotate : 0,
-        opacity: isTop ? fade : 1,
-        zIndex,
-        // pan-y: the browser keeps vertical scrolling, we get horizontal drags
-        touchAction: "pan-y",
-        // Draw the card on its own layer so moving it doesn't repaint it
-        willChange: "transform",
-      }}
-      drag={isTop && leaving === null ? "x" : false}
-      dragElastic={1}
-      dragMomentum={false}
-      onDragEnd={handleDragEnd}
-      className="absolute inset-0 cursor-grab active:cursor-grabbing"
-    >
-      <CardFace game={game}>
-        {/* SAVE and PASS stamps: only on the top card */}
-        {isTop && (
-          <>
-            <motion.div
-              style={{ opacity: opacityLike }}
-              className={`${displayFont.className} pointer-events-none absolute right-8 top-10 z-10 rotate-12 retro-raised bg-[#31e08a] px-2 py-1 text-xs text-[#14122b]`}
-            >
-              SAVE
-            </motion.div>
-            <motion.div
-              style={{ opacity: opacityNope }}
-              className={`${displayFont.className} pointer-events-none absolute left-8 top-10 z-10 -rotate-12 retro-raised bg-[#d62fb8] px-2 py-1 text-xs text-white`}
-            >
-              PASS
-            </motion.div>
-          </>
-        )}
-      </CardFace>
-    </motion.div>
   );
 }

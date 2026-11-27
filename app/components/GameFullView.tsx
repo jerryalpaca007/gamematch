@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { Game } from "./Gamematch";
+import type { Game } from "@/app/lib/types";
 import { uiFont, displayFont } from "./fonts";
 import { scoreColor } from "./cardScale";
+import { useGameInfo } from "@/app/lib/useGameInfo";
 import RetroButton from "./RetroButton";
 import RetroWindow from "./RetroWindow";
 import MoodCard from "./MoodCard";
@@ -41,42 +42,16 @@ export default function GameFullView({
   // where Back goes: "Back to results" in Browse, "Back to GameMatch" on the swipe page
   backLabel?: string;
 }) {
-  const [description, setDescription] = useState<string | null>(null);
-  const [price, setPrice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [shots, setShots] = useState<{ thumb: string; full: string }[]>([]);
+  const { info, loading } = useGameInfo(game.steam_app_id);
+  const { description, price } = info;
+  const shots = useMemo(() => info.screenshots ?? [], [info.screenshots]);
+  const reqs = info.requirements ?? { minimum: null, recommended: null };
+  const makers = info.developers ?? [];
   const [shot, setShot] = useState(0);
   // true while the big "Screenshot" window is open
   const [zoom, setZoom] = useState(false);
-  const [reqs, setReqs] = useState<{
-    minimum: string | null;
-    recommended: string | null;
-  }>({
-    minimum: null,
-    recommended: null,
-  });
-  const [makers, setMakers] = useState<string[]>([]);
-
   const storeUrl = `https://store.steampowered.com/app/${game.steam_app_id}`;
-  const genres = Array.isArray(game.genres) ? game.genres : [game.genres];
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`/api/game/${game.steam_app_id}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.description) setDescription(data.description);
-        if (data?.price) setPrice(data.price);
-        if (data?.screenshots) setShots(data.screenshots);
-        if (data?.requirements) setReqs(data.requirements);
-        if (data?.developers) setMakers(data.developers);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [game.steam_app_id]);
+  const { genres } = game;
 
   // Start at the top of the page, and let Escape go back
   useEffect(() => {

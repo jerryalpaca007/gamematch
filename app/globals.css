@@ -22,23 +22,56 @@ body {
   background-color: var(--retro-black);
   background-image:
     /* neon streaks */
-    linear-gradient(90deg, transparent 0 4%, rgba(214, 47, 184, 0.55) 4% 14%, transparent 14%),
-    linear-gradient(90deg, transparent 0 62%, rgba(79, 227, 240, 0.45) 62% 78%, transparent 78%),
-    linear-gradient(90deg, transparent 0 80%, rgba(49, 224, 138, 0.4) 80% 90%, transparent 90%),
-    linear-gradient(0deg, transparent 0 38%, rgba(214, 47, 184, 0.45) 38% 39%, transparent 39%),
-    linear-gradient(0deg, transparent 0 71%, rgba(79, 227, 240, 0.4) 71% 72%, transparent 72%),
-    /* grid */
-    linear-gradient(rgba(111, 105, 184, 0.09) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      transparent 0 4%,
+      rgba(214, 47, 184, 0.55) 4% 14%,
+      transparent 14%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0 62%,
+      rgba(79, 227, 240, 0.45) 62% 78%,
+      transparent 78%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0 80%,
+      rgba(49, 224, 138, 0.4) 80% 90%,
+      transparent 90%
+    ),
+    linear-gradient(
+      0deg,
+      transparent 0 38%,
+      rgba(214, 47, 184, 0.45) 38% 39%,
+      transparent 39%
+    ),
+    linear-gradient(
+      0deg,
+      transparent 0 71%,
+      rgba(79, 227, 240, 0.4) 71% 72%,
+      transparent 72%
+    ),
+    /* grid */ linear-gradient(rgba(111, 105, 184, 0.09) 1px, transparent 1px),
     linear-gradient(90deg, rgba(111, 105, 184, 0.09) 1px, transparent 1px);
   background-size:
-    100% 2px, 100% 2px, 100% 2px,
-    2px 100%, 2px 100%,
-    28px 28px, 28px 28px;
+    100% 2px,
+    100% 2px,
+    100% 2px,
+    2px 100%,
+    2px 100%,
+    28px 28px,
+    28px 28px;
   background-position:
-    0 12%, 0 33%, 0 58%,
-    9% 0, 91% 0,
-    0 0, 0 0;
-  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat, repeat;
+    0 12%,
+    0 33%,
+    0 58%,
+    9% 0,
+    91% 0,
+    0 0,
+    0 0;
+  background-repeat:
+    no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat, repeat;
 }
 .retro-scanlines {
   pointer-events: none;
@@ -93,17 +126,32 @@ body {
 .retro-btn-indigo {
   color: #fff;
   border-color: #9b94ff #1a1370 #1a1370 #9b94ff;
-  background: linear-gradient(#5b4ef0 0%, #3a2bd1 48%, #2a1da8 52%, #3a2bd1 100%);
+  background: linear-gradient(
+    #5b4ef0 0%,
+    #3a2bd1 48%,
+    #2a1da8 52%,
+    #3a2bd1 100%
+  );
 }
 .retro-btn-white {
   color: #14122b;
   border-color: #ffffff #8c89a8 #8c89a8 #ffffff;
-  background: linear-gradient(#ffffff 0%, #ececf6 48%, #d4d3e6 52%, #ececf6 100%);
+  background: linear-gradient(
+    #ffffff 0%,
+    #ececf6 48%,
+    #d4d3e6 52%,
+    #ececf6 100%
+  );
 }
 .retro-btn-magenta {
   color: #fff;
   border-color: #ff8be6 #7a1068 #7a1068 #ff8be6;
-  background: linear-gradient(#e847cb 0%, #d62fb8 48%, #a81f90 52%, #d62fb8 100%);
+  background: linear-gradient(
+    #e847cb 0%,
+    #d62fb8 48%,
+    #a81f90 52%,
+    #d62fb8 100%
+  );
 }
 
 /* Fonts (see components/fonts.ts) */

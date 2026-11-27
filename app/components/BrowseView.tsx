@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
-import type { Game } from "./Gamematch";
+import type { Game } from "@/app/lib/types";
 import GameDetails from "./GameDetails";
 import GameFullView from "./GameFullView";
 import SignInPrompt, { SaveError } from "./SignInPrompt";
@@ -12,9 +12,15 @@ import { useUser } from "@/app/lib/auth";
 import { removeGame, saveGame, useSaved } from "@/app/lib/saved";
 import RetroWindow from "./RetroWindow";
 import RetroButton from "./RetroButton";
-import PixelIcon from "./PixelIcon";
-import { displayFont, uiFont } from "./fonts";
-import { scoreColor } from "./cardScale";
+import GameTile from "./browse/GameTile";
+import {
+  Check,
+  Chip,
+  RamSelect,
+  Range,
+  SectionTitle,
+} from "./browse/FilterControls";
+import { uiFont } from "./fonts";
 
 // How many tags show before "Show all tags" is pressed
 const TAGS_COLLAPSED = 12;
@@ -44,243 +50,9 @@ const PLAYERS = [
   { key: "pvp", label: "PvP", test: /pvp/i },
 ] as const;
 
-const RAM_CHOICES = [1, 2, 4, 6, 8, 12, 16, 32];
 const PAGE = 24;
 
 type SortKey = "score" | "year" | "name" | "ram";
-
-// ---------- small form pieces in the retro style ----------
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3
-      className={`${displayFont.className} mb-2 mt-5 border-b-2 border-[#d62fb8] pb-1 text-lg text-[#4fe3f0] first:mt-0`}
-    >
-      {children}
-    </h3>
-  );
-}
-
-function Check({
-  checked,
-  onChange,
-  children,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: () => void;
-  children: React.ReactNode;
-  disabled?: boolean;
-}) {
-  return (
-    <label
-      className={`${uiFont.className} flex cursor-pointer items-center gap-2 py-0.5 text-base text-[#ece9ff] ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        disabled={disabled}
-        className="peer sr-only"
-      />
-      <span className="retro-inset flex h-5 w-5 shrink-0 items-center justify-center bg-[#14122b] text-sm font-bold leading-none text-[#4fe3f0] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-[#4fe3f0]">
-        {checked ? "✕" : ""}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={`retro-btn ${active ? "retro-btn-indigo" : "retro-btn-white"} ${uiFont.className} !px-1.5 !py-0 text-[11px] leading-5`}
-    >
-      {children}
-    </button>
-  );
-}
-
-// Two sliders, for the low and the high end of a range
-function Range({
-  label,
-  min,
-  max,
-  step,
-  value,
-  onChange,
-}: {
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  value: [number, number];
-  onChange: (v: [number, number]) => void;
-}) {
-  return (
-    <div className={`${uiFont.className} text-sm text-[#ece9ff]`}>
-      <div className="flex justify-between">
-        <span>{label}</span>
-        <span className="text-[#4fe3f0]">
-          {value[0]} - {value[1]}
-        </span>
-      </div>
-      <input
-        type="range"
-        aria-label={`${label} from`}
-        min={min}
-        max={max}
-        step={step}
-        value={value[0]}
-        onChange={(e) =>
-          onChange([Math.min(Number(e.target.value), value[1]), value[1]])
-        }
-        className="mt-1 block w-full accent-[#d62fb8]"
-      />
-      <input
-        type="range"
-        aria-label={`${label} to`}
-        min={min}
-        max={max}
-        step={step}
-        value={value[1]}
-        onChange={(e) =>
-          onChange([value[0], Math.max(Number(e.target.value), value[0])])
-        }
-        className="block w-full accent-[#4fe3f0]"
-      />
-    </div>
-  );
-}
-
-function RamSelect({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-}) {
-  return (
-    <label
-      className={`${uiFont.className} flex items-center justify-between gap-2 text-sm text-[#ece9ff]`}
-    >
-      {label}
-      <select
-        value={value ?? ""}
-        onChange={(e) =>
-          onChange(e.target.value === "" ? null : Number(e.target.value))
-        }
-        className="retro-inset bg-[#14122b] px-2 py-1 text-[#4fe3f0]"
-      >
-        <option value="">Any</option>
-        {RAM_CHOICES.map((n) => (
-          <option key={n} value={n}>
-            {n} GB
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-// ---------- one game in the grid ----------
-
-function Tile({
-  game,
-  onOpen,
-  saved,
-  onSave,
-}: {
-  game: Game;
-  onOpen: () => void;
-  saved: boolean;
-  onSave: () => void;
-}) {
-  const genres = Array.isArray(game.genres) ? game.genres : [game.genres];
-  return (
-    <div className="retro-raised flex flex-col bg-[#a9a3e3] p-1.5">
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`Open ${game.title}`}
-        className="block text-left active:translate-x-px active:translate-y-px"
-      >
-        <span
-          className="retro-inset relative block bg-black"
-          style={{ aspectRatio: "460 / 215" }}
-        >
-          {game.header_url && (
-            <img
-              src={game.header_url}
-              alt=""
-              loading="lazy"
-              draggable={false}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          )}
-        </span>
-        <span
-          className={`${uiFont.className} mt-1.5 block truncate text-base font-bold leading-5 text-[#14122b]`}
-        >
-          {game.title}
-        </span>
-        <span
-          className={`${uiFont.className} block truncate text-sm leading-4 text-[#3a3772]`}
-        >
-          {genres.slice(0, 3).join(" · ")} • {game.year}
-        </span>
-      </button>
-
-      <div className="mt-1.5 flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5">
-          <span
-            className={`${uiFont.className} flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-[#14122b] px-1 text-[13px] font-bold text-[#14122b]`}
-            style={{
-              backgroundColor:
-                game.metacritic != null
-                  ? scoreColor(game.metacritic)
-                  : "#ece9ff",
-            }}
-          >
-            {game.metacritic ?? "--"}
-          </span>
-          {game.min_ram_gb != null && (
-            <span className={`${uiFont.className} text-[12px] text-[#14122b]`}>
-              {game.min_ram_gb}GB
-            </span>
-          )}
-        </span>
-        <button
-          type="button"
-          onClick={onSave}
-          aria-pressed={saved}
-          aria-label={`${saved ? "Remove" : "Save"} ${game.title}`}
-          className={`retro-btn ${saved ? "retro-btn-indigo" : "retro-btn-white"} !px-2 !py-0.5 text-xs`}
-        >
-          <PixelIcon
-            name="star"
-            color={saved ? "#ffffff" : "#14122b"}
-            size="12px"
-          />
-          {saved ? "SAVED" : "SAVE"}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ---------- the page ----------
 
@@ -357,14 +129,14 @@ export default function BrowseView() {
   }, [games]);
 
   const yearRange: [number, number] = years ?? [facts.minYear, facts.maxYear];
+  const [yearFrom, yearTo] = yearRange;
 
   const results = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     const out = games.filter((g) => {
       const title = g.title.toLowerCase();
       if (!words.every((w) => title.includes(w))) return false;
-      const gGenres = Array.isArray(g.genres) ? g.genres : [g.genres];
-      for (const want of genres) if (!gGenres.includes(want)) return false;
+      for (const want of genres) if (!g.genres.includes(want)) return false;
       for (const want of tags) if (!(g.tags ?? []).includes(want)) return false;
       for (const key of players) {
         const rule = PLAYERS.find((p) => p.key === key);
@@ -375,7 +147,7 @@ export default function BrowseView() {
         if (!includeUnscored) return false;
       } else if (g.metacritic < score[0] || g.metacritic > score[1])
         return false;
-      if (g.year < yearRange[0] || g.year > yearRange[1]) return false;
+      if (g.year < yearFrom || g.year > yearTo) return false;
       if (ramMin != null || ramMax != null) {
         if (g.min_ram_gb == null) return false;
         if (ramMin != null && g.min_ram_gb < ramMin) return false;
@@ -412,31 +184,34 @@ export default function BrowseView() {
     players,
     score,
     includeUnscored,
-    yearRange[0],
-    yearRange[1],
+    yearFrom,
+    yearTo,
     ramMin,
     ramMax,
     integratedOnly,
     sort,
   ]);
 
-  // Any change to the filters starts the grid from the top again
-  useEffect(
-    () => setVisible(PAGE),
-    [
-      query,
-      genres,
-      tags,
-      players,
-      score,
-      includeUnscored,
-      years,
-      ramMin,
-      ramMax,
-      integratedOnly,
-      sort,
-    ],
-  );
+  // Any change to the filters starts the grid from the top again. Done while
+  // rendering (React's way to reset state), which avoids an extra effect.
+  const filterKey = JSON.stringify([
+    query,
+    [...genres],
+    [...tags],
+    [...players],
+    score,
+    includeUnscored,
+    years,
+    ramMin,
+    ramMax,
+    integratedOnly,
+    sort,
+  ]);
+  const [shownFor, setShownFor] = useState(filterKey);
+  if (shownFor !== filterKey) {
+    setShownFor(filterKey);
+    setVisible(PAGE);
+  }
 
   const toggle = (
     set: Set<string>,
@@ -664,7 +439,7 @@ export default function BrowseView() {
 
                 <div className="grid grid-cols-1 gap-3 min-[460px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {results.slice(0, visible).map((g) => (
-                    <Tile
+                    <GameTile
                       key={g.steam_app_id}
                       game={g}
                       onOpen={() => setViewing(g)}

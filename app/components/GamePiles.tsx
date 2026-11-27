@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import type { Game } from "./Gamematch";
+import type { Game } from "@/app/lib/types";
 import { uiFont } from "./fonts";
 import { CARD_W, CARD_H, px } from "./cardScale";
 import CardFace from "./CardFace";

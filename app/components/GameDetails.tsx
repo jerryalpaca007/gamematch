@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { motion } from "framer-motion";
-import type { Game } from "./Gamematch";
+import type { Game } from "@/app/lib/types";
 import { uiFont, displayFont } from "./fonts";
 import { scoreColor } from "./cardScale";
+import { useGameInfo } from "@/app/lib/useGameInfo";
 import RetroWindow from "./RetroWindow";
 import RetroButton from "./RetroButton";
 
@@ -18,27 +19,10 @@ type Props = {
 // The expanded view of one game: bigger image, full description, score, price
 // and a link to the Steam store page, in a retro window.
 export default function GameDetails({ game, onClose, onMaximize }: Props) {
-  const [description, setDescription] = useState<string | null>(null);
-  const [price, setPrice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { info, loading } = useGameInfo(game.steam_app_id);
+  const { description, price } = info;
 
   const storeUrl = `https://store.steampowered.com/app/${game.steam_app_id}`;
-
-  // Load the long description and price from our own API route
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`/api/game/${game.steam_app_id}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.description) setDescription(data.description);
-        if (data?.price) setPrice(data.price);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [game.steam_app_id]);
 
   // Escape closes the panel
   useEffect(() => {
@@ -49,9 +33,7 @@ export default function GameDetails({ game, onClose, onMaximize }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const genres = Array.isArray(game.genres)
-    ? game.genres.join(", ")
-    : game.genres;
+  const genres = game.genres.join(", ");
 
   return (
     <motion.div

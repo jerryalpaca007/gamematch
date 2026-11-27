@@ -2,7 +2,7 @@ import { displayFont, uiFont } from "./fonts";
 import { px, scoreColor } from "./cardScale";
 import { MOODS } from "./moods";
 import { cardTier } from "./moodTier";
-import type { Game } from "./Gamematch";
+import type { Game } from "@/app/lib/types";
 
 const INK = "#14122b";
 
@@ -18,9 +18,7 @@ export default function CardFace({
   game: Game;
   children?: React.ReactNode;
 }) {
-  const genres = Array.isArray(game.genres)
-    ? game.genres
-    : game.genres.split(",").map((g) => g.trim());
+  const { genres } = game;
   // The two strongest moods, like a card's two attacks
   const topMoods = [...MOODS]
     .sort((a, b) => game.mood[b.key] - game.mood[a.key])

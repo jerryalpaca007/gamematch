@@ -1,4 +1,4 @@
-import type { Game } from "./Gamematch";
+import type { Game } from "@/app/lib/types";
 import { MOODS } from "./moods";
 import { cardTier, moodTotal, USE_MOOD_TIERS } from "./moodTier";
 import { uiFont, displayFont } from "./fonts";

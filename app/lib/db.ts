@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { Game } from "./types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -32,30 +33,6 @@ export interface SteamGame {
   min_ram_gb?: number | null;
   min_graphics?: string | null;
   integrated_ok?: boolean | null;
-}
-
-export interface GameWithMood {
-  steam_app_id: number;
-  title: string;
-  metacritic: number | null;
-  header_url: string | null;
-  genres: string[];
-  categories: string[];
-  tags: string[];
-  min_ram_gb?: number | null;
-  min_graphics?: string | null;
-  integrated_ok?: boolean | null;
-  emoji: string;
-  year: number;
-  summary: string;
-  mood: {
-    excitement: number;
-    chill: number;
-    puzzle: number;
-    story: number;
-    challenge: number;
-  };
-  bg: string;
 }
 
 // Same list as sync-steam.ts. Hides NSFW games that were stored before the
@@ -172,34 +149,6 @@ export function generateMoodScores(genres: string[], rating: number) {
   return { excitement, chill, puzzle, story, challenge };
 }
 
-export function generateEmojiForGame(title: string, genres: string[]): string {
-  const genresLower = genres.map((g) => g.toLowerCase());
-  const emojis: { [key: string]: string } = {
-    action: "⚔️",
-    adventure: "🗺️",
-    rpg: "🎭",
-    puzzle: "🧩",
-    strategy: "♟️",
-    simulation: "🚀",
-    casual: "🎮",
-    indie: "✨",
-    horror: "👻",
-    sports: "⚽",
-    racing: "🏎️",
-    fighting: "🥊",
-    shooter: "🔫",
-    platformer: "⛰️",
-    roguelike: "🎲",
-    roguelite: "🎲",
-  };
-
-  for (const genre of genresLower) {
-    if (emojis[genre]) return emojis[genre];
-  }
-
-  return "🎮";
-}
-
 export function generateBgColor(rating: number): string {
   const colors = [
     "#8b2e1f",
@@ -226,7 +175,7 @@ function decodeEntities(text: string | null): string {
     .replace(/&amp;/g, "&");
 }
 
-export function enrichGameData(game: SteamGame): GameWithMood {
+export function enrichGameData(game: SteamGame): Game {
   // Steam dates look like "14 Aug, 2025", so find the 4-digit year anywhere in it
   const yearMatch = game.released?.match(/\b(19|20)\d{2}\b/);
   const year = yearMatch ? parseInt(yearMatch[0]) : new Date().getFullYear();
@@ -234,7 +183,6 @@ export function enrichGameData(game: SteamGame): GameWithMood {
   // Use metacritic or default rating for mood calculation
   const ratingForMood = game.metacritic ? game.metacritic / 20 : 3;
   const mood = generateMoodScores(game.genres, ratingForMood);
-  const emoji = generateEmojiForGame(game.title, game.genres);
   const bg = generateBgColor(ratingForMood);
 
   return {
@@ -254,7 +202,6 @@ export function enrichGameData(game: SteamGame): GameWithMood {
       decodeEntities(game.short_description) ||
       `A ${game.genres.join(", ")} game`,
     mood,
-    emoji,
     bg,
   };
 }

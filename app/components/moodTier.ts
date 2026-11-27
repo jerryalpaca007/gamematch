@@ -50,7 +50,9 @@ const TIERS: Record<CardTier["name"], CardTier> = {
 };
 
 export function moodTotal(mood: MoodScores): number {
-  return mood.excitement + mood.chill + mood.puzzle + mood.story + mood.challenge;
+  return (
+    mood.excitement + mood.chill + mood.puzzle + mood.story + mood.challenge
+  );
 }
 
 // Switched off until the real mood system exists: the current mood scores are

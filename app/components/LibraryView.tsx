@@ -7,7 +7,7 @@ import { fetchGamesFromSupabase, enrichGameData } from "@/app/lib/db";
 import { removeGame, useSaved } from "@/app/lib/saved";
 import { useUser } from "@/app/lib/auth";
 import { SaveError } from "./SignInPrompt";
-import type { Game } from "./Gamematch";
+import type { Game } from "@/app/lib/types";
 import CardFace from "./CardFace";
 import GameDetails from "./GameDetails";
 import GameFullView from "./GameFullView";
@@ -133,11 +133,7 @@ export default function LibraryView() {
 
   const current = saved.find((g) => g.steam_app_id === selected) ?? null;
 
-  const genres = current
-    ? (Array.isArray(current.genres) ? current.genres : [current.genres]).join(
-        " • ",
-      )
-    : "";
+  const genres = current?.genres.join(" • ") ?? "";
 
   // A game opened full size takes over the page, like on Browse and the main page
   if (fullGame) {
@@ -183,7 +179,6 @@ export default function LibraryView() {
             >
               {current.header_url && (
                 <div className="retro-inset bg-black p-1">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={current.header_url} alt="" className="w-full" />
                 </div>
               )}
