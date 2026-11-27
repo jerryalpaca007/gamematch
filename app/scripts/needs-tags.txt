@@ -63,7 +63,6 @@
 4704690 | MECCHA CHAMELEON
 3224770 | Umamusume: Pretty Derby
 1607250 | MY HERO ULTRA RUMBLE
-3557620 | Blue Archive
 2806050 | Halo: Campaign Evolved
 2584270 | Mortal Shell II
 3028330 | Battlefield™ REDSEC
@@ -654,3 +653,25 @@
 2814990 | Screamer
 2229870 | Command & Conquer™ Generals
 2229890 | Command & Conquer Renegade™
+4253570 | Reshine
+3347910 | Rat Game
+4990940 | PC Store Together
+5189160 | We March as One
+3754990 | GodsArena Online
+2781660 | Dawn of Defense
+4164790 | Survival Log
+2321960 | Spirit Crossing
+2902720 | SPAM
+3364070 | The Jackbox Party Pack 11
+2860490 | Warota: I Live Next to The Demon King's Castle LOL
+3296060 | Escape Academy 2: Back 2 School
+1996390 | Escape from Ever After
+4466620 | SiNiSistar 2
+3743140 | Battleplan
+4339280 | ShipShaper
+5185750 | Trafficity
+2239670 | Glory To The Heroes™
+3634190 | MXGP 26 - The Official Game
+3914860 | Moss: The Forgotten Relic 
+5035380 | BALL PICKER - Clean Up the Golf Yard
+3048060 | Trivia Murder Party 3

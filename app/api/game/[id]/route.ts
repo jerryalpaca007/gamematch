@@ -1,24 +1,7 @@
 // Fetches the long description and price for one game from Steam. The browser
 // can't call Steam's store API directly, so this runs on the server.
 
-// Steam returns HTML; turn it into plain text so it is safe to show
-function htmlToText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "• ")
-    .replace(/<\/(p|h[1-6]|li|div|ul)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/^[ \t]+/gm, "")
-    .replace(/[ \t]+$/gm, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
+import { descriptionBlocks, htmlToText } from "@/app/lib/steam-description";
 
 export async function GET(
   _request: Request,
@@ -59,13 +42,6 @@ export async function GET(
     return Response.json({ error: "Game not found" }, { status: 404 });
   }
 
-  const text = htmlToText(
-    data.about_the_game ??
-      data.detailed_description ??
-      data.short_description ??
-      "",
-  );
-
   // Steam sends [] instead of an object when a game lists no requirements
   const req = Array.isArray(data.pc_requirements)
     ? {}
@@ -89,7 +65,12 @@ export async function GET(
     },
     developers: data.developers ?? [],
     publishers: data.publishers ?? [],
-    description: text,
+    description: descriptionBlocks(
+      data.about_the_game ??
+        data.detailed_description ??
+        data.short_description ??
+        "",
+    ),
     price: data.is_free
       ? "Free to play"
       : (data.price_overview?.final_formatted ?? null),

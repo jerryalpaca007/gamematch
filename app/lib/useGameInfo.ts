@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import type { DescriptionBlock } from "./steam-description";
 
 // Extra details Steam only gives one game at a time (see api/game/[id])
 export interface GameInfo {
-  description?: string;
+  description?: DescriptionBlock[];
   price?: string | null;
   screenshots?: { thumb: string; full: string }[];
   requirements?: { minimum: string | null; recommended: string | null };

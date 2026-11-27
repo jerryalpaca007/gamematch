@@ -6,6 +6,7 @@ import type { Game } from "@/app/lib/types";
 import { uiFont, displayFont } from "./fonts";
 import { scoreColor } from "./cardScale";
 import { useGameInfo } from "@/app/lib/useGameInfo";
+import SteamDescription from "./SteamDescription";
 import RetroButton from "./RetroButton";
 import RetroWindow from "./RetroWindow";
 import MoodCard from "./MoodCard";
@@ -170,11 +171,7 @@ export default function GameFullView({
         {/* Right: the written information */}
         <div className="min-w-0">
           <Section title="ABOUT">
-            <p
-              className={`${uiFont.className} whitespace-pre-line text-lg leading-6 text-[#ece9ff]`}
-            >
-              {description ?? game.summary}
-            </p>
+            <SteamDescription blocks={description} fallback={game.summary} />
             {loading && (
               <p
                 className={`${uiFont.className} mt-1 text-base text-[#a9a3e3]`}

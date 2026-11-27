@@ -6,6 +6,7 @@ import type { Game } from "@/app/lib/types";
 import { uiFont, displayFont } from "./fonts";
 import { scoreColor } from "./cardScale";
 import { useGameInfo } from "@/app/lib/useGameInfo";
+import SteamDescription from "./SteamDescription";
 import RetroWindow from "./RetroWindow";
 import RetroButton from "./RetroButton";
 
@@ -111,11 +112,9 @@ export default function GameDetails({ game, onClose, onMaximize }: Props) {
             >
               ABOUT
             </h3>
-            <p
-              className={`${uiFont.className} mt-2 whitespace-pre-line text-lg leading-6 text-[#ece9ff]`}
-            >
-              {description ?? game.summary}
-            </p>
+            <div className="mt-2">
+              <SteamDescription blocks={description} fallback={game.summary} />
+            </div>
             {loading && (
               <p
                 className={`${uiFont.className} mt-1 text-base text-[#a9a3e3]`}

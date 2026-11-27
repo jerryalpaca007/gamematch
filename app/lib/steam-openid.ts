@@ -13,7 +13,10 @@ const MAX_AGE_MS = 5 * 60 * 1000;
 // request's Host header, which the sender controls: trusting it would let an
 // answer Steam gave to another website be replayed here.
 export function siteUrl(): string {
-  return (process.env.SITE_URL || "http://localhost:3000").replace(/\/+$/, "");
+  const value = process.env.SITE_URL || "http://localhost:3000";
+  // only the origin counts, so a pasted page address (".../login") or a
+  // trailing slash can't send Steam back to a page that doesn't exist
+  return new URL(value.includes("://") ? value : `https://${value}`).origin;
 }
 
 export function steamLoginUrl(returnTo: string): string {
