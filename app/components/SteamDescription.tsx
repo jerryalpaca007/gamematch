@@ -58,12 +58,12 @@ export default function SteamDescription({
     : [{ type: "text" as const, text: fallback }];
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-3">
       {shown.map((block, i) =>
         block.type === "text" ? (
           <p
             key={i}
-            className={`${uiFont.className} whitespace-pre-line text-lg leading-6 text-[#ece9ff]`}
+            className={`${uiFont.className} whitespace-pre-line text-lg [overflow-wrap:anywhere] leading-6 text-[#ece9ff]`}
           >
             {block.text}
           </p>

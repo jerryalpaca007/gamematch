@@ -14,21 +14,25 @@ export type DescriptionBlock =
     };
 
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<li[^>]*>/gi, "• ")
-    .replace(/<\/(p|h[1-6]|li|div|ul)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/^[ \t]+/gm, "")
-    .replace(/[ \t]+$/gm, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<li[^>]*>/gi, "• ")
+      .replace(/<\/(p|h[1-6]|li|div|ul)>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      // "==========" style dividers have no spaces to wrap at: keep them short
+      .replace(/([=\-_*~#.•—])\1{19,}/g, (run) => run.slice(0, 20))
+      .replace(/^[ \t]+/gm, "")
+      .replace(/[ \t]+$/gm, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }
 
 // The value of one attribute of an HTML tag

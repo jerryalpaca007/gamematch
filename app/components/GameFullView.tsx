@@ -192,14 +192,17 @@ export default function GameFullView({
                 ).map(
                   ([label, text]) =>
                     text && (
-                      <div key={label} className="retro-inset bg-[#14122b] p-2">
+                      <div
+                        key={label}
+                        className="retro-inset min-w-0 bg-[#14122b] p-2"
+                      >
                         <div
                           className={`${uiFont.className} text-base text-[#d62fb8]`}
                         >
                           {label.toUpperCase()}
                         </div>
                         <p
-                          className={`${uiFont.className} mt-1 whitespace-pre-line text-sm leading-5 text-[#ece9ff]`}
+                          className={`${uiFont.className} mt-1 whitespace-pre-line text-sm leading-5 [overflow-wrap:anywhere] text-[#ece9ff]`}
                         >
                           {text}
                         </p>
