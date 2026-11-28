@@ -16,22 +16,30 @@ import ActionButtons from "./ActionButtons";
 import GameDetails from "./GameDetails";
 import { useRouter } from "next/navigation";
 import { saveGame, useSaved } from "@/app/lib/saved";
+import { passGame, resetPassed, usePassed } from "@/app/lib/passed";
 import { useUser } from "@/app/lib/auth";
 import SignInPrompt, { SaveError } from "./SignInPrompt";
 import Pile from "./GamePiles";
 import GameFullView from "./GameFullView";
 import { uiFont } from "./fonts";
 import SwipeCard from "./SwipeCard";
-import { MOODS } from "./moods";
 import type { Game } from "@/app/lib/types";
 import { S, px, CARD_W, CARD_H } from "./cardScale";
 import RetroWindow from "./RetroWindow";
 import RetroButton from "./RetroButton";
 
-// Ranking: a game scores its mood total times MOOD_WEIGHT (roughly 30-65), plus
-// a random bonus of up to JITTER_WEIGHT so the order differs on every visit
-const MOOD_WEIGHT = 3;
-const JITTER_WEIGHT = 25;
+// The deck is a full shuffle: each game gets a random place. The numbers are kept
+// outside the component, so the order holds while you move between pages and
+// changes when the site is reloaded.
+const shuffleOrder = new Map<number, number>();
+function placeInDeck(gameId: number): number {
+  let place = shuffleOrder.get(gameId);
+  if (place === undefined) {
+    place = Math.random();
+    shuffleOrder.set(gameId, place);
+  }
+  return place;
+}
 
 // How many cards beyond the 3 on screen get their image loaded in advance
 const PRELOAD_AHEAD = 6;
@@ -48,12 +56,15 @@ export default function GameMatch() {
   // State: values that change over time and trigger a re-render when updated
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
-  // A Set is a fast way to ask "have I seen this game?"
   // The game shown in the expanded view, or null when it is closed
   const [viewing, setViewing] = useState<Game | null>(null);
   // The game shown full size (replaces the swipe console until you go back)
   const [fullGame, setFullGame] = useState<Game | null>(null);
+  // games saved by swiping during this visit. A Set is a fast way to ask
+  // "have I seen this game?"
   const [seenIds, setSeenIds] = useState<Set<number>>(new Set());
+  // passed games are remembered by the browser (lib/passed.ts)
+  const passedIds = usePassed();
   // saved games belong to the account (lib/saved.ts), not to this page
   const { ids: savedIds, error: saveError } = useSaved();
   const { user, loading: authLoading } = useUser();
@@ -96,8 +107,8 @@ export default function GameMatch() {
   // Effect: runs once when the component first appears (empty array = run once)
   // It loads games from your database, not from Steam
   useEffect(() => {
-    // In development React runs this effect twice. Each run would reshuffle the
-    // deck, making the first cards fly away, so only the latest run may apply.
+    // In development React runs this effect twice, so only the latest run may
+    // apply its result.
     let cancelled = false;
     const loadGames = async () => {
       try {
@@ -107,7 +118,7 @@ export default function GameMatch() {
           // Add mood and colour fields to each raw game
           const all: Game[] = steamGames.map((g) => ({
             ...enrichGameData(g),
-            jitter: Math.random(),
+            jitter: placeInDeck(g.steam_app_id),
           }));
           setGames(all);
         }
@@ -131,19 +142,19 @@ export default function GameMatch() {
       .filter((g): g is Game => g !== undefined);
   }, [games, savedIds]);
 
-  // Every unseen game, best first. useMemo means the sort runs only when one of
-  // these inputs changes, not on every render.
+  // Every game not yet passed or saved, in shuffled order. useMemo means the
+  // sort runs only when one of these inputs changes, not on every render.
   const ranked = useMemo(() => {
-    const score = (g: Game) =>
-      MOODS.reduce((sum, m) => sum + g.mood[m.key], 0) * MOOD_WEIGHT +
-      (g.jitter ?? 0) * JITTER_WEIGHT;
+    const passed = new Set(passedIds);
     return games
       .filter(
         (g) =>
-          !seenIds.has(g.steam_app_id) && !savedIds.includes(g.steam_app_id),
+          !passed.has(g.steam_app_id) &&
+          !seenIds.has(g.steam_app_id) &&
+          !savedIds.includes(g.steam_app_id),
       )
-      .sort((a, b) => score(b) - score(a));
-  }, [games, seenIds, savedIds]);
+      .sort((a, b) => (a.jitter ?? 0) - (b.jitter ?? 0));
+  }, [games, passedIds, seenIds, savedIds]);
   // The 3 cards on screen
   const currentDeck = useMemo(() => ranked.slice(0, 3), [ranked]);
 
@@ -177,18 +188,23 @@ export default function GameMatch() {
     return true;
   };
 
-  // Step 2: the card has fully left the screen. Now it counts as seen (and is
-  // saved if liked), and the next card moves up.
+  // Step 2: the card has fully left the screen. Now it is saved or remembered as
+  // passed, and the next card moves up.
   const commitSwipe = () => {
     if (!leaving) return;
-    // Create a new Set instead of changing the old one, so React sees the update
-    setSeenIds((prev) => new Set(prev).add(leaving.id));
-    if (leaving.dir === 1) void saveGame(leaving.id);
+    if (leaving.dir === 1) {
+      // Create a new Set instead of changing the old one, so React sees the update
+      setSeenIds((prev) => new Set(prev).add(leaving.id));
+      void saveGame(leaving.id);
+    } else {
+      passGame(leaving.id);
+    }
     setLeaving(null);
   };
 
   const handleReset = () => {
     // brings passed games back; saved games stay in the account
+    resetPassed();
     setSeenIds(new Set());
   };
 

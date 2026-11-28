@@ -18,5 +18,5 @@ export interface Game {
   min_ram_gb?: number | null;
   min_graphics?: string | null;
   integrated_ok?: boolean | null;
-  jitter?: number; // random 0-1, picked once per page load, so the deck order varies
+  jitter?: number; // random 0-1: the game's place in the shuffled swipe deck
 }

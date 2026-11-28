@@ -10,6 +10,7 @@ import SteamDescription from "./SteamDescription";
 import RetroButton from "./RetroButton";
 import RetroWindow from "./RetroWindow";
 import MoodCard from "./MoodCard";
+import MatchCard from "./MatchCard";
 
 // A heading bar used for each section of the full view
 function Section({
@@ -170,6 +171,10 @@ export default function GameFullView({
 
         {/* Right: the written information */}
         <div className="min-w-0">
+          <Section title="YOUR MATCH">
+            <MatchCard game={game} />
+          </Section>
+
           <Section title="ABOUT">
             <SteamDescription blocks={description} fallback={game.summary} />
             {loading && (
